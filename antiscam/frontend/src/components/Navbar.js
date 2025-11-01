@@ -23,7 +23,7 @@ const Navbar = () => {
             <div className="w-10 h-10 bg-gradient-to-br from-[#00FFB2] to-[#00A3FF] rounded-lg flex items-center justify-center">
               <Shield className="w-6 h-6 text-[#0A192F]" />
             </div>
-            <span className="text-2xl font-bold gradient-text">FIGMENT</span>
+            <span className="text-2xl font-bold text-white">FIGMENT</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -33,9 +33,8 @@ const Navbar = () => {
                 key={link.path}
                 to={link.path}
                 data-testid={`nav-link-${link.name.toLowerCase()}`}
-                className={`text-sm font-medium relative ${
-                  location.pathname === link.path ? 'text-[#00FFB2]' : 'text-gray-300 hover:text-[#00FFB2]'
-                }`}
+                className={`text-sm font-medium relative ${location.pathname === link.path ? 'text-[#00FFB2]' : 'text-gray-300 hover:text-[#00FFB2]'
+                  }`}
               >
                 {link.name}
                 {location.pathname === link.path && (
@@ -74,9 +73,8 @@ const Navbar = () => {
                 key={link.path}
                 to={link.path}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`block py-2 text-sm font-medium ${
-                  location.pathname === link.path ? 'text-[#00FFB2]' : 'text-gray-300'
-                }`}
+                className={`block py-2 text-sm font-medium ${location.pathname === link.path ? 'text-[#00FFB2]' : 'text-gray-300'
+                  }`}
               >
                 {link.name}
               </Link>

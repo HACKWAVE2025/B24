@@ -39,7 +39,7 @@ const Sidebar = ({ isOpen, onClose, onLogout }) => {
                   <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-blue-500 rounded-lg flex items-center justify-center shadow-lg">
                     <Shield className="w-6 h-6 text-white" />
                   </div>
-                  <span className="text-2xl font-bold gradient-text">FIGMENT</span>
+                  <span className="text-2xl font-bold text-gray-900">FIGMENT</span>
                 </div>
                 <Button
                   variant="ghost"
@@ -59,11 +59,10 @@ const Sidebar = ({ isOpen, onClose, onLogout }) => {
                     to={item.path}
                     onClick={onClose}
                     data-testid={`sidebar-link-${item.name.toLowerCase().replace(/ /g, '-')}`}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${
-                      location.pathname === item.path
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${location.pathname === item.path
                         ? 'bg-gradient-to-r from-indigo-600 to-blue-600 text-white shadow-lg shadow-indigo-500/50'
                         : 'text-gray-700 hover:bg-indigo-50'
-                    }`}
+                      }`}
                   >
                     {item.icon}
                     <span>{item.name}</span>

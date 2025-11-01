@@ -42,7 +42,7 @@ const LoginPage = ({ onLogin }) => {
             <div className="w-12 h-12 bg-gradient-to-br from-[#00C896] to-[#0091FF] rounded-xl flex items-center justify-center">
               <Shield className="w-7 h-7 text-white" />
             </div>
-            <span className="text-3xl font-bold gradient-text">FIGMENT</span>
+            <span className="text-3xl font-bold ">FIGMENT</span>
           </div>
           <p className="text-gray-600">AI co-pilot for safe UPI transactions</p>
         </div>

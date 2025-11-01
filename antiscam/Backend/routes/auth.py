@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify, redirect
-from datetime import datetime
+from datetime import datetime, timezone
 from database.db import get_db
 from utils.auth import (
     generate_token, 
@@ -60,8 +60,8 @@ def signup():
             "password": hash_password(password),
             "name": name,
             "auth_method": "email",
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc)
         }
         
         result = users.insert_one(user_doc)
@@ -227,7 +227,7 @@ def google_callback():
             # Update user if needed
             update_data = {
                 "google_id": google_id,
-                "updated_at": datetime.utcnow()
+                "updated_at": datetime.now(timezone.utc)
             }
             if picture and not user.get('picture'):
                 update_data['picture'] = picture
@@ -247,8 +247,8 @@ def google_callback():
                 "name": name,
                 "picture": picture,
                 "auth_method": "google",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
             }
             result = users.insert_one(user_doc)
             user_id = str(result.inserted_id)

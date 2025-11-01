@@ -3,12 +3,13 @@ import { motion } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import DashboardCard from '../components/DashboardCard';
+import TransactionHistory from '../components/TransactionHistory';
 import { Shield, AlertTriangle, Users, TrendingUp } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { mockDashboardData, mockRecentReports, mockUserActivity } from '../utils/mockData';
+import { mockDashboardData } from '../utils/mockData';
 import { Progress } from '../components/ui/progress';
 
-const DashboardPage = ({ onLogout }) => {
+const DashboardPage = ({ onLogout, darkMode, toggleDarkMode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const stats = [
@@ -59,11 +60,11 @@ const DashboardPage = ({ onLogout }) => {
   const currentTransactionRisk = 72;
 
   return (
-    <div className="min-h-screen bg-[#F8FAFB]">
+    <div className={darkMode ? "min-h-screen bg-gray-900" : "min-h-screen bg-[#F8FAFB]"}>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onLogout={onLogout} />
-      <TopNav onMenuClick={() => setSidebarOpen(true)} />
-      
-      <section className="pt-32 pb-20 px-6" data-testid="dashboard-section">
+      <TopNav onMenuClick={() => setSidebarOpen(true)} darkMode={darkMode} onDarkModeToggle={toggleDarkMode} />
+
+      <section className="pt-24 pb-20 px-6" data-testid="dashboard-section">
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -71,8 +72,8 @@ const DashboardPage = ({ onLogout }) => {
             transition={{ duration: 0.6 }}
             className="mb-12"
           >
-            <h1 className="text-4xl sm:text-5xl font-bold mb-4 text-gray-900">Analytics Dashboard</h1>
-            <p className="text-gray-600 text-lg">Real-time insights from FIGMENT's collective intelligence</p>
+            <h1 className={darkMode ? "text-4xl sm:text-5xl font-bold mb-4 text-white" : "text-4xl sm:text-5xl font-bold mb-4 text-gray-900"}>Analytics Dashboard</h1>
+            <p className={darkMode ? "text-gray-300 text-lg" : "text-gray-600 text-lg"}>Real-time insights from FIGMENT's collective intelligence</p>
           </motion.div>
 
           {/* Stats Grid */}
@@ -84,7 +85,7 @@ const DashboardPage = ({ onLogout }) => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1, duration: 0.5 }}
               >
-                <DashboardCard {...stat} />
+                <DashboardCard {...stat} darkMode={darkMode} />
               </motion.div>
             ))}
           </div>
@@ -97,7 +98,7 @@ const DashboardPage = ({ onLogout }) => {
             className="glass p-8 rounded-2xl mb-12"
             data-testid="current-risk-section"
           >
-            <h3 className="text-2xl font-bold mb-6 text-gray-900">Cumulative Risk Score - Current Transaction</h3>
+            <h3 className={darkMode ? "text-2xl font-bold mb-6 text-white" : "text-2xl font-bold mb-6 text-gray-900"}>Cumulative Risk Score - Current Transaction</h3>
             <div className="grid md:grid-cols-2 gap-8 items-center">
               <div>
                 <div className="relative w-64 h-64 mx-auto">
@@ -127,16 +128,16 @@ const DashboardPage = ({ onLogout }) => {
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">Overall Assessment</span>
+                    <span className={darkMode ? "text-sm font-medium text-gray-300" : "text-sm font-medium text-gray-700"}>Overall Assessment</span>
                     <span className="text-sm font-bold" style={{ color: currentTransactionRisk >= 70 ? '#FF6B6B' : currentTransactionRisk >= 40 ? '#FFB946' : '#00C896' }}>
                       {currentTransactionRisk >= 70 ? 'HIGH RISK' : currentTransactionRisk >= 40 ? 'MEDIUM RISK' : 'LOW RISK'}
                     </span>
                   </div>
                   <Progress value={currentTransactionRisk} className="h-3" />
                 </div>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-700 leading-relaxed">
-                    Based on analysis from 4 AI agents, this transaction shows {currentTransactionRisk >= 70 ? 'strong indicators of potential fraud' : currentTransactionRisk >= 40 ? 'moderate risk factors' : 'minimal risk factors'}. 
+                <div className={darkMode ? "bg-gray-800 p-4 rounded-lg" : "bg-gray-50 p-4 rounded-lg"}>
+                  <p className={darkMode ? "text-sm text-gray-300 leading-relaxed" : "text-sm text-gray-700 leading-relaxed"}>
+                    Based on analysis from 4 AI agents, this transaction shows {currentTransactionRisk >= 70 ? 'strong indicators of potential fraud' : currentTransactionRisk >= 40 ? 'moderate risk factors' : 'minimal risk factors'}.
                     {currentTransactionRisk >= 70 && ' We strongly recommend canceling this transaction.'}
                   </p>
                 </div>
@@ -152,11 +153,11 @@ const DashboardPage = ({ onLogout }) => {
             className="glass p-8 rounded-2xl mb-12"
             data-testid="ai-agents-section"
           >
-            <h3 className="text-2xl font-bold mb-6 text-gray-900">AI Agents Performance Analytics</h3>
+            <h3 className={darkMode ? "text-2xl font-bold mb-6 text-white" : "text-2xl font-bold mb-6 text-gray-900"}>AI Agents Performance Analytics</h3>
             <div className="grid lg:grid-cols-2 gap-8">
               {/* Bar Chart */}
               <div>
-                <h4 className="text-lg font-semibold mb-4 text-gray-800">Prediction Accuracy by Agent</h4>
+                <h4 className={darkMode ? "text-lg font-semibold mb-4 text-gray-200" : "text-lg font-semibold mb-4 text-gray-800"}>Prediction Accuracy by Agent</h4>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={agentPerformance}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
@@ -174,16 +175,16 @@ const DashboardPage = ({ onLogout }) => {
 
               {/* Agent Cards */}
               <div className="space-y-3">
-                <h4 className="text-lg font-semibold mb-4 text-gray-800">Total Predictions</h4>
+                <h4 className={darkMode ? "text-lg font-semibold mb-4 text-gray-200" : "text-lg font-semibold mb-4 text-gray-800"}>Total Predictions</h4>
                 {agentPerformance.map((agent, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:shadow-md transition-shadow">
+                  <div key={index} className={darkMode ? "flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:shadow-md transition-shadow" : "flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:shadow-md transition-shadow"}>
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: agent.color }}></div>
-                      <span className="font-medium text-gray-800">{agent.name}</span>
+                      <span className={darkMode ? "font-medium text-gray-200" : "font-medium text-gray-800"}>{agent.name}</span>
                     </div>
                     <div className="text-right">
-                      <div className="text-lg font-bold text-gray-900">{agent.predictions.toLocaleString()}</div>
-                      <div className="text-xs text-gray-600">{agent.accuracy}% accurate</div>
+                      <div className={darkMode ? "text-lg font-bold text-white" : "text-lg font-bold text-gray-900"}>{agent.predictions.toLocaleString()}</div>
+                      <div className={darkMode ? "text-xs text-gray-400" : "text-xs text-gray-600"}>{agent.accuracy}% accurate</div>
                     </div>
                   </div>
                 ))}
@@ -199,7 +200,7 @@ const DashboardPage = ({ onLogout }) => {
             className="glass p-8 rounded-2xl mb-12"
             data-testid="risk-distribution-section"
           >
-            <h3 className="text-2xl font-bold mb-6 text-gray-900">Risk Level Distribution</h3>
+            <h3 className={darkMode ? "text-2xl font-bold mb-6 text-white" : "text-2xl font-bold mb-6 text-gray-900"}>Risk Level Distribution</h3>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -221,51 +222,6 @@ const DashboardPage = ({ onLogout }) => {
             </ResponsiveContainer>
           </motion.div>
 
-          {/* Recent Reports Table */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="glass rounded-2xl overflow-hidden mb-12"
-            data-testid="recent-reports-table"
-          >
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-900">Recent Reports</h3>
-              <p className="text-sm text-gray-600 mt-1">Most recently flagged UPI IDs</p>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">UPI ID</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Risk Score</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Type</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Reports</th>
-                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Last Seen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {mockRecentReports.map((report, index) => (
-                    <tr key={index} className="border-t border-gray-100 hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-mono text-gray-800">{report.upiId}</td>
-                      <td className="px-6 py-4">
-                        <span
-                          className="px-3 py-1 rounded-full text-xs font-semibold"
-                          style={{ backgroundColor: `${report.riskColor}20`, color: report.riskColor }}
-                        >
-                          {report.riskScore}%
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{report.type}</td>
-                      <td className="px-6 py-4 text-sm text-gray-700">{report.reports}</td>
-                      <td className="px-6 py-4 text-sm text-gray-500">{report.lastSeen}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-
           {/* User Activity */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -274,29 +230,7 @@ const DashboardPage = ({ onLogout }) => {
             className="glass p-6 rounded-2xl"
             data-testid="user-activity"
           >
-            <h3 className="text-xl font-semibold mb-4 text-gray-900">Your Recent Activity</h3>
-            <div className="space-y-4">
-              {mockUserActivity.map((activity, index) => (
-                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:shadow-md transition-shadow">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-mono text-sm text-gray-800">{activity.upiId}</span>
-                      <span
-                        className="px-2 py-1 rounded text-xs font-semibold"
-                        style={{ backgroundColor: `${activity.statusColor}20`, color: activity.statusColor }}
-                      >
-                        {activity.status}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-600">{activity.message}</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-semibold text-gray-900">₹{activity.amount}</div>
-                    <div className="text-xs text-gray-500">{activity.time}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <TransactionHistory userId={localStorage.getItem('figment_user_id')} darkMode={darkMode} />
           </motion.div>
         </div>
       </section>

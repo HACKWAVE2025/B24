@@ -3,7 +3,7 @@ import os
 import warnings
 import numpy as np
 import joblib
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from database.db import get_db
 
 # Suppress sklearn version warnings (models trained with newer version work fine)
@@ -182,7 +182,7 @@ class BehaviorAgent:
         
         # Day of week (0=Monday, 6=Sunday)
         # Get current day or from transaction time if available
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         day_of_week = now.weekday()
         
         # Delta hours: hours since last transaction
@@ -279,7 +279,7 @@ class BehaviorAgent:
         
         # Get existing pattern
         existing = user_behavior.find_one({"user_id": user_id})
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         
         if existing:
             # Update existing
