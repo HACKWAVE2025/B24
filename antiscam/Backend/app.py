@@ -10,6 +10,7 @@ from database.db import get_db, connect
 from utils.score_aggregator import aggregate_scores
 from routes.auth import auth_bp
 from utils.auth import token_required
+from typing import Dict, Any, Optional
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend
@@ -17,15 +18,45 @@ CORS(app)  # Enable CORS for frontend
 # Register blueprints
 app.register_blueprint(auth_bp)
 
-# Initialize MongoDB connection
-connect()
-
 # Initialize agents
-pattern_agent = PatternAgent()
-network_agent = NetworkAgent()
-behavior_agent = BehaviorAgent()
-biometric_agent = BiometricAgent()
+pattern_agent: Optional[PatternAgent] = None
+network_agent: Optional[NetworkAgent] = None
+behavior_agent: Optional[BehaviorAgent] = None
+biometric_agent: Optional[BiometricAgent] = None
 
+def initialize_agents() -> bool:
+    """Initialize all AI agents"""
+    global pattern_agent, network_agent, behavior_agent, biometric_agent
+    try:
+        pattern_agent = PatternAgent()
+        network_agent = NetworkAgent()
+        behavior_agent = BehaviorAgent()
+        biometric_agent = BiometricAgent()
+        print("✅ All AI agents initialized successfully!")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to initialize AI agents: {e}")
+        return False
+
+def get_current_user_id() -> Optional[str]:
+    """Extract user_id from request context set by token_required decorator"""
+    try:
+        # The token_required decorator sets request.current_user
+        # Using getattr with default to avoid linter issues
+        current_user = getattr(request, 'current_user', None)
+        if current_user:
+            return current_user.get('user_id')
+        return None
+    except Exception:
+        return None
+
+# Initialize MongoDB connection and agents on startup
+with app.app_context():
+    try:
+        connect()
+        initialize_agents()
+    except Exception as e:
+        print(f"❌ Failed to initialize application: {e}")
 
 @app.route('/api/analyze', methods=['POST'])
 @token_required
@@ -45,6 +76,10 @@ def analyze_transaction():
     }
     """
     try:
+        # Check if agents are initialized
+        if not all([pattern_agent, network_agent, behavior_agent, biometric_agent]):
+            return jsonify({'error': 'AI agents not initialized'}), 500
+        
         data = request.get_json()
         
         # Validate required fields
@@ -54,10 +89,12 @@ def analyze_transaction():
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
         # Get user_id from token (from token_required decorator)
-        user_id = request.current_user['user_id']
+        user_id = get_current_user_id()
+        if not user_id:
+            return jsonify({'error': 'User not authenticated'}), 401
         
         # Extract transaction details
-        transaction = {
+        transaction: Dict[str, Any] = {
             'receiver': data.get('receiver', ''),
             'amount': float(data.get('amount', 0)),
             'reason': data.get('reason', data.get('message', '')),  # Accept 'message' or 'reason'
@@ -68,10 +105,10 @@ def analyze_transaction():
         }
         
         # Run all agents
-        pattern_result = pattern_agent.analyze(transaction)
-        network_result = network_agent.analyze(transaction)
-        behavior_result = behavior_agent.analyze(transaction)
-        biometric_result = biometric_agent.analyze(transaction)
+        pattern_result = pattern_agent.analyze(transaction) if pattern_agent else {}
+        network_result = network_agent.analyze(transaction) if network_agent else {}
+        behavior_result = behavior_agent.analyze(transaction) if behavior_agent else {}
+        biometric_result = biometric_agent.analyze(transaction) if biometric_agent else {}
         
         # Aggregate scores
         agents = [
@@ -91,36 +128,36 @@ def analyze_transaction():
                     'name': 'Pattern Agent',
                     'icon': '🕵️',
                     'color': '#00C896',
-                    'riskScore': pattern_result['risk_score'],
-                    'message': pattern_result['message'],
-                    'details': pattern_result['details'],
+                    'riskScore': pattern_result.get('risk_score', 0),
+                    'message': pattern_result.get('message', ''),
+                    'details': pattern_result.get('details', ''),
                     'evidence': pattern_result.get('evidence', [])
                 },
                 {
                     'name': 'Network Agent',
                     'icon': '🕸️',
                     'color': '#0091FF',
-                    'riskScore': network_result['risk_score'],
-                    'message': network_result['message'],
-                    'details': network_result['details'],
+                    'riskScore': network_result.get('risk_score', 0),
+                    'message': network_result.get('message', ''),
+                    'details': network_result.get('details', ''),
                     'evidence': network_result.get('evidence', [])
                 },
                 {
                     'name': 'Behavior Agent',
                     'icon': '🔍',
                     'color': '#A78BFA',
-                    'riskScore': behavior_result['risk_score'],
-                    'message': behavior_result['message'],
-                    'details': behavior_result['details'],
+                    'riskScore': behavior_result.get('risk_score', 0),
+                    'message': behavior_result.get('message', ''),
+                    'details': behavior_result.get('details', ''),
                     'evidence': behavior_result.get('evidence', [])
                 },
                 {
                     'name': 'Biometric Agent',
                     'icon': '🎭',
                     'color': '#F472B6',
-                    'riskScore': biometric_result['risk_score'],
-                    'message': biometric_result['message'],
-                    'details': biometric_result['details'],
+                    'riskScore': biometric_result.get('risk_score', 0),
+                    'message': biometric_result.get('message', ''),
+                    'details': biometric_result.get('details', ''),
                     'evidence': biometric_result.get('evidence', [])
                 }
             ]
@@ -128,9 +165,11 @@ def analyze_transaction():
         
         return jsonify(response), 200
         
+    except ValueError as e:
+        return jsonify({'error': f'Invalid data format: {str(e)}'}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+        print(f"Error in analyze_transaction: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/report', methods=['POST'])
 @token_required
@@ -148,7 +187,11 @@ def report_scam():
         data = request.get_json()
         
         receiver = data.get('receiver')
-        user_id = request.current_user['user_id']
+        # Get user_id from token (from token_required decorator)
+        user_id = get_current_user_id()
+        if not user_id:
+            return jsonify({'error': 'User not authenticated'}), 401
+            
         reason = data.get('reason', 'Reported scam')
         
         if not receiver:
@@ -205,8 +248,8 @@ def report_scam():
         }), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+        print(f"Error in report_scam: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/history', methods=['GET'])
 @token_required
@@ -215,7 +258,10 @@ def get_history():
     Get transaction history for the authenticated user
     """
     try:
-        user_id = request.current_user['user_id']
+        # Get user_id from token (from token_required decorator)
+        user_id = get_current_user_id()
+        if not user_id:
+            return jsonify({'error': 'User not authenticated'}), 401
         
         db = get_db()
         if db is None:
@@ -231,19 +277,26 @@ def get_history():
         # Convert to list of dicts
         history = []
         for tx in tx_list:
+            # Handle datetime conversion safely
+            created_at = tx.get('created_at')
+            if created_at and hasattr(created_at, 'isoformat'):
+                formatted_date = created_at.isoformat()
+            else:
+                formatted_date = str(created_at) if created_at else ''
+                
             history.append({
                 'id': str(tx.get('_id', '')),
                 'receiver': tx.get('receiver_id', ''),
                 'amount': tx.get('amount', 0),
                 'reason': tx.get('reason', ''),
-                'created_at': tx.get('created_at', '').isoformat() if tx.get('created_at') else ''
+                'created_at': formatted_date
             })
         
         return jsonify({'transactions': history}), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+        print(f"Error in get_history: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/complete-transaction', methods=['POST'])
 @token_required
@@ -265,10 +318,19 @@ def complete_transaction():
         
         receiver = data.get('receiver')
         amount = data.get('amount')
-        user_id = request.current_user['user_id']
+        # Get user_id from token (from token_required decorator)
+        user_id = get_current_user_id()
+        if not user_id:
+            return jsonify({'error': 'User not authenticated'}), 401
         
         if not receiver or not amount:
             return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Validate amount is numeric
+        try:
+            amount = float(amount)
+        except (ValueError, TypeError):
+            return jsonify({'error': 'Invalid amount format'}), 400
         
         # Save to MongoDB
         db = get_db()
@@ -279,7 +341,7 @@ def complete_transaction():
         
         transaction_doc = {
             "receiver_id": receiver,
-            "amount": float(amount),
+            "amount": amount,
             "reason": data.get('reason', ''),
             "user_id": user_id,
             "time": data.get('time', ''),
@@ -296,8 +358,8 @@ def complete_transaction():
         }), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+        print(f"Error in complete_transaction: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/feedback', methods=['POST'])
 @token_required
@@ -317,7 +379,11 @@ def submit_feedback():
         data = request.get_json()
         
         receiver = data.get('receiver')
-        user_id = request.current_user['user_id']
+        # Get user_id from token (from token_required decorator)
+        user_id = get_current_user_id()
+        if not user_id:
+            return jsonify({'error': 'User not authenticated'}), 401
+            
         was_scam = data.get('was_scam')
         transaction_id = data.get('transaction_id')
         
@@ -383,13 +449,12 @@ def submit_feedback():
         }), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+        print(f"Error in submit_feedback: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'healthy'}), 200
-
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
