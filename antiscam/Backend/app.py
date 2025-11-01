@@ -1,19 +1,31 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
+import pandas as pd
 from datetime import datetime, timezone
+
+# Import agents
 from agents.pattern_agent import PatternAgent
 from agents.network_agent import NetworkAgent
 from agents.behavior_agent import BehaviorAgent
 from agents.biometric_agent import BiometricAgent
+from agents.retrain_behavior_manual import retrain_behavior_model
+
+# 🆕 Import pattern retraining function
+from agents.retrain_pattern_manual import retrain_pattern_model  
+
+# Database and utils
 from database.db import get_db, connect
 from utils.score_aggregator import aggregate_scores
 from routes.auth import auth_bp
 from utils.auth import token_required
 from typing import Dict, Any, Optional
 
+# -------------------------------------------------------------
+# Flask setup
+# -------------------------------------------------------------
 app = Flask(__name__)
-CORS(app)  # Enable CORS for frontend
+CORS(app)
 
 # Register blueprints
 app.register_blueprint(auth_bp)
@@ -50,6 +62,50 @@ def get_current_user_id() -> Optional[str]:
     except Exception:
         return None
 
+# -------------------------------------------------------------
+# Helper: Save feedback locally + trigger retraining
+# -------------------------------------------------------------
+def save_feedback_and_check_retrain(feedback):
+    feedback_path = os.path.join(os.path.dirname(__file__), 'data', 'behavior_feedback.csv')
+    os.makedirs(os.path.dirname(feedback_path), exist_ok=True)
+
+    df = pd.DataFrame([feedback])
+
+    if os.path.exists(feedback_path) and os.path.getsize(feedback_path) > 0:
+        df.to_csv(feedback_path, mode='a', header=False, index=False)
+    else:
+        df.to_csv(feedback_path, index=False)
+
+    feedback_count = len(pd.read_csv(feedback_path))
+    print(f"📥 Behavior feedback count: {feedback_count}")
+
+    if feedback_count >= 10:
+        print("🚀 Threshold reached — retraining behavior model...")
+        retrain_behavior_model()
+
+
+# 🆕 Pattern retraining support
+def save_pattern_feedback_and_retrain(feedback):
+    """
+    Save feedback for pattern agent retraining (locally) and trigger retrain if threshold met.
+    """
+    feedback_path = os.path.join(os.path.dirname(__file__), 'data', 'pattern_feedback.csv')
+    os.makedirs(os.path.dirname(feedback_path), exist_ok=True)
+
+    df = pd.DataFrame([feedback])
+
+    if os.path.exists(feedback_path) and os.path.getsize(feedback_path) > 0:
+        df.to_csv(feedback_path, mode='a', header=False, index=False)
+    else:
+        df.to_csv(feedback_path, index=False)
+
+    feedback_count = len(pd.read_csv(feedback_path))
+    print(f"📥 Pattern feedback count: {feedback_count}")
+
+    if feedback_count >= 10:
+        print("🚀 Threshold reached — retraining pattern model...")
+        retrain_pattern_model()
+
 # Initialize MongoDB connection and agents on startup
 with app.app_context():
     try:
@@ -58,31 +114,19 @@ with app.app_context():
     except Exception as e:
         print(f"❌ Failed to initialize application: {e}")
 
+# -------------------------------------------------------------
+# ROUTES
+# -------------------------------------------------------------
 @app.route('/api/analyze', methods=['POST'])
 @token_required
 def analyze_transaction():
-    """
-    Main endpoint: Analyzes transaction through all 4 agents
-    
-    Request body:
-    {
-        "receiver": "loanhelp@upi",
-        "amount": 8000,
-        "reason": "urgent help",
-        "time": "2:05 AM",
-        "user_id": "U123",
-        "typing_speed": 150,  // optional for biometric agent
-        "hesitation_count": 2  // optional
-    }
-    """
     try:
         # Check if agents are initialized
         if not all([pattern_agent, network_agent, behavior_agent, biometric_agent]):
             return jsonify({'error': 'AI agents not initialized'}), 500
         
         data = request.get_json()
-        
-        # Validate required fields
+
         required_fields = ['receiver', 'amount']
         for field in required_fields:
             if field not in data:
@@ -97,7 +141,7 @@ def analyze_transaction():
         transaction: Dict[str, Any] = {
             'receiver': data.get('receiver', ''),
             'amount': float(data.get('amount', 0)),
-            'reason': data.get('reason', data.get('message', '')),  # Accept 'message' or 'reason'
+            'reason': data.get('reason', data.get('message', '')),
             'time': data.get('time', ''),
             'user_id': user_id,
             'typing_speed': data.get('typing_speed', None),
@@ -119,8 +163,7 @@ def analyze_transaction():
         ]
         
         overall_risk = aggregate_scores(agents)
-        
-        # Format response
+
         response = {
             'overallRisk': overall_risk,
             'agents': [
@@ -162,7 +205,7 @@ def analyze_transaction():
                 }
             ]
         }
-        
+
         return jsonify(response), 200
         
     except ValueError as e:
@@ -174,18 +217,8 @@ def analyze_transaction():
 @app.route('/api/report', methods=['POST'])
 @token_required
 def report_scam():
-    """
-    Report a scam ID to improve network agent
-    
-    Request body:
-    {
-        "receiver": "scammer@upi",
-        "reason": "Fake loan scam"
-    }
-    """
     try:
         data = request.get_json()
-        
         receiver = data.get('receiver')
         # Get user_id from token (from token_required decorator)
         user_id = get_current_user_id()
@@ -193,45 +226,38 @@ def report_scam():
             return jsonify({'error': 'User not authenticated'}), 401
             
         reason = data.get('reason', 'Reported scam')
-        
+
         if not receiver:
             return jsonify({'error': 'Missing receiver ID'}), 400
-        
-        # Save to MongoDB
+
         db = get_db()
         if db is None:
             return jsonify({'error': 'Database connection failed'}), 500
-            
+
         scam_reports = db.scam_reports
-        
-        # Find existing report or create new
         existing = scam_reports.find_one({"receiver_id": receiver})
-        
+
         if existing:
-            # Update existing - increment count, add reason, add user_id if not present
             new_count = existing.get('count', 0) + 1
             reasons = existing.get('reasons', [])
             user_ids = existing.get('user_ids', [])
-            
+
             if reason and reason not in reasons:
                 reasons.append(reason)
             if user_id and user_id not in user_ids:
                 user_ids.append(user_id)
-            
+
             scam_reports.update_one(
                 {"receiver_id": receiver},
-                {
-                    "$set": {
-                        "count": new_count,
-                        "reasons": reasons,
-                        "user_ids": user_ids,
-                        "updated_at": datetime.now(timezone.utc)
-                    }
-                }
+                {"$set": {
+                    "count": new_count,
+                    "reasons": reasons,
+                    "user_ids": user_ids,
+                    "updated_at": datetime.now(timezone.utc)
+                }}
             )
             count = new_count
         else:
-            # Create new report
             scam_reports.insert_one({
                 "receiver_id": receiver,
                 "count": 1,
@@ -241,12 +267,12 @@ def report_scam():
                 "updated_at": datetime.now(timezone.utc)
             })
             count = 1
-        
+
         return jsonify({
             'success': True,
-            'message': f'Scam reported successfully. Total reports for this ID: {count}'
+            'message': f'Scam reported successfully. Total reports: {count}'
         }), 200
-        
+
     except Exception as e:
         print(f"Error in report_scam: {e}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -254,9 +280,6 @@ def report_scam():
 @app.route('/api/history', methods=['GET'])
 @token_required
 def get_history():
-    """
-    Get transaction history for the authenticated user
-    """
     try:
         # Get user_id from token (from token_required decorator)
         user_id = get_current_user_id()
@@ -266,15 +289,10 @@ def get_history():
         db = get_db()
         if db is None:
             return jsonify({'error': 'Database connection failed'}), 500
-            
+
         transactions = db.transactions
-        
-        # Get user transactions
-        tx_list = list(transactions.find(
-            {"user_id": user_id}
-        ).sort("created_at", -1).limit(20))
-        
-        # Convert to list of dicts
+        tx_list = list(transactions.find({"user_id": user_id}).sort("created_at", -1).limit(20))
+
         history = []
         for tx in tx_list:
             # Handle datetime conversion safely
@@ -291,9 +309,9 @@ def get_history():
                 'reason': tx.get('reason', ''),
                 'created_at': formatted_date
             })
-        
+
         return jsonify({'transactions': history}), 200
-        
+
     except Exception as e:
         print(f"Error in get_history: {e}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -301,21 +319,8 @@ def get_history():
 @app.route('/api/complete-transaction', methods=['POST'])
 @token_required
 def complete_transaction():
-    """
-    Complete a transaction (save to history after PIN confirmation)
-    
-    Request body:
-    {
-        "receiver": "example@upi",
-        "amount": 1000,
-        "reason": "Payment",
-        "time": "2:05 AM",
-        "risk_score": 85.5
-    }
-    """
     try:
         data = request.get_json()
-        
         receiver = data.get('receiver')
         amount = data.get('amount')
         # Get user_id from token (from token_required decorator)
@@ -336,9 +341,8 @@ def complete_transaction():
         db = get_db()
         if db is None:
             return jsonify({'error': 'Database connection failed'}), 500
-            
+
         transactions = db.transactions
-        
         transaction_doc = {
             "receiver_id": receiver,
             "amount": amount,
@@ -348,15 +352,15 @@ def complete_transaction():
             "risk_score": data.get('risk_score', 0),
             "created_at": datetime.now(timezone.utc)
         }
-        
+
         result = transactions.insert_one(transaction_doc)
-        
+
         return jsonify({
             'success': True,
             'transaction_id': str(result.inserted_id),
             'message': 'Transaction completed successfully'
         }), 200
-        
+
     except Exception as e:
         print(f"Error in complete_transaction: {e}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -364,20 +368,8 @@ def complete_transaction():
 @app.route('/api/feedback', methods=['POST'])
 @token_required
 def submit_feedback():
-    """
-    Submit feedback after transaction completion
-    
-    Request body:
-    {
-        "transaction_id": "tx123",
-        "receiver": "example@upi",
-        "was_scam": true,  // true if it was actually a scam, false otherwise
-        "comment": "Optional comment"
-    }
-    """
     try:
         data = request.get_json()
-        
         receiver = data.get('receiver')
         # Get user_id from token (from token_required decorator)
         user_id = get_current_user_id()
@@ -386,17 +378,15 @@ def submit_feedback():
             
         was_scam = data.get('was_scam')
         transaction_id = data.get('transaction_id')
-        
+
         if receiver is None or was_scam is None:
             return jsonify({'error': 'Missing required fields: receiver, was_scam'}), 400
-        
+
         db = get_db()
         if db is None:
             return jsonify({'error': 'Database connection failed'}), 500
-            
+
         feedback_collection = db.feedback
-        
-        # Save feedback
         feedback_doc = {
             "transaction_id": transaction_id,
             "receiver_id": receiver,
@@ -405,49 +395,25 @@ def submit_feedback():
             "comment": data.get('comment', ''),
             "created_at": datetime.now(timezone.utc)
         }
-        
         feedback_collection.insert_one(feedback_doc)
-        
-        # If user confirms it was a scam, increment scam count
-        if was_scam:
-            scam_reports = db.scam_reports
-            existing = scam_reports.find_one({"receiver_id": receiver})
-            
-            if existing:
-                # Increment count
-                new_count = existing.get('count', 0) + 1
-                reasons = existing.get('reasons', [])
-                user_ids = existing.get('user_ids', [])
-                
-                if user_id and user_id not in user_ids:
-                    user_ids.append(user_id)
-                
-                scam_reports.update_one(
-                    {"receiver_id": receiver},
-                    {
-                        "$set": {
-                            "count": new_count,
-                            "user_ids": user_ids,
-                            "updated_at": datetime.now(timezone.utc)
-                        }
-                    }
-                )
-            else:
-                # Create new scam report
-                scam_reports.insert_one({
-                    "receiver_id": receiver,
-                    "count": 1,
-                    "reasons": [data.get('comment', 'Confirmed scam by user')],
-                    "user_ids": [user_id] if user_id else [],
-                    "created_at": datetime.now(timezone.utc),
-                    "updated_at": datetime.now(timezone.utc)
-                })
-        
+
+        # Save feedback for both models
+        feedback_entry = {
+            "user_id": user_id,
+            "receiver": receiver,
+            "was_scam": was_scam,
+            "comment": data.get('comment', ''),
+            "timestamp": datetime.now().isoformat()
+        }
+
+        save_feedback_and_check_retrain(feedback_entry)
+        save_pattern_feedback_and_retrain(feedback_entry)  # 🆕 added
+
         return jsonify({
             'success': True,
             'message': 'Feedback submitted successfully'
         }), 200
-        
+
     except Exception as e:
         print(f"Error in submit_feedback: {e}")
         return jsonify({'error': 'Internal server error'}), 500
@@ -456,5 +422,8 @@ def submit_feedback():
 def health():
     return jsonify({'status': 'healthy'}), 200
 
+# -------------------------------------------------------------
+# RUN SERVER
+# -------------------------------------------------------------
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
