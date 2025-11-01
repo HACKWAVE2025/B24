@@ -102,7 +102,7 @@ pip install -r requirements.txt
 # Create .env file
 # Add your MongoDB connection string:
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/?appName=Cluster0
-DB_NAME=figment
+DB_NAME=AntiScam
 ```
 
 **Place ML Models:**
@@ -213,83 +213,21 @@ The system combines all 4 agent scores:
 ### `POST /api/analyze`
 Analyze a transaction through all agents
 
-**Request:**
-```json
-{
-  "receiver": "loanhelp@upi",
-  "amount": 8000,
-  "reason": "urgent help needed",
-  "time": "2:05 AM",
-  "user_id": "user_123",
-  "typing_speed": 150,  // optional
-  "hesitation_count": 2  // optional
-}
-```
-
-**Response:**
-```json
-{
-  "overallRisk": 85.5,
-  "agents": [
-    {
-      "name": "Pattern Agent",
-      "icon": "🕵️",
-      "riskScore": 85.0,
-      "message": "⚠️ High scam risk detected!",
-      "details": "...",
-      "evidence": ["..."]
-    },
-    // ... other agents
-  ]
-}
-```
-
 ---
 
 ### `POST /api/report`
 Report a scammer to the network
-
-**Request:**
-```json
-{
-  "receiver": "scammer@upi",
-  "user_id": "user_123",
-  "reason": "Fake loan scam"
-}
-```
 
 ---
 
 ### `POST /api/complete-transaction`
 Save completed transaction to history
 
-**Request:**
-```json
-{
-  "receiver": "loanhelp@upi",
-  "amount": 8000,
-  "reason": "urgent help",
-  "user_id": "user_123",
-  "time": "2:05 AM",
-  "risk_score": 85.5
-}
-```
-
 ---
 
 ### `POST /api/feedback`
 Submit feedback after transaction
 
-**Request:**
-```json
-{
-  "transaction_id": "tx_123",
-  "receiver": "loanhelp@upi",
-  "user_id": "user_123",
-  "was_scam": true,
-  "comment": "They never delivered the loan"
-}
-```
 
 **Note:** If `was_scam: true`, increments scam count in network database
 
@@ -298,88 +236,12 @@ Submit feedback after transaction
 ### `GET /api/history/<user_id>`
 Get transaction history for a user
 
-**Response:**
-```json
-{
-  "transactions": [
-    {
-      "transaction_id": "tx_123",
-      "receiver": "loanhelp@upi",
-      "amount": 8000,
-      "risk_score": 85.5,
-      "created_at": "2024-01-15T10:30:00Z"
-    }
-  ]
-}
-```
-
 ---
 
 ### `GET /health`
 Health check endpoint
 
-**Response:**
-```json
-{
-  "status": "healthy"
-}
-```
-
 ---
-
-## 💾 Database Schema (MongoDB)
-
-### Collections
-
-#### `scam_reports`
-Community-reported scammers
-```json
-{
-  "receiver_id": "loanhelp@upi",
-  "count": 12,
-  "reasons": ["Fake loan scam", "Never delivered"],
-  "first_reported_at": "2024-01-10T00:00:00Z",
-  "updated_at": "2024-01-15T10:30:00Z"
-}
-```
-
-#### `transactions`
-Completed transaction history
-```json
-{
-  "transaction_id": "tx_123",
-  "user_id": "user_123",
-  "receiver_id": "loanhelp@upi",
-  "amount": 8000,
-  "reason": "urgent help",
-  "risk_score": 85.5,
-  "created_at": "2024-01-15T10:30:00Z"
-}
-```
-
-#### `user_behavior`
-User transaction patterns for behavior analysis
-```json
-{
-  "user_id": "user_123",
-  "avg_amount": 5000,
-  "transaction_count": 15,
-  "last_transaction_at": "2024-01-15T10:30:00Z"
-}
-```
-
-#### `feedback`
-User feedback on transactions
-```json
-{
-  "transaction_id": "tx_123",
-  "receiver_id": "loanhelp@upi",
-  "user_id": "user_123",
-  "was_scam": true,
-  "comment": "Never delivered",
-  "created_at": "2024-01-15T10:35:00Z"
-}
-```
 
 ---
 
@@ -411,87 +273,6 @@ User feedback on transactions
    - Feedback modal appears
    - User confirms if it was actually a scam
    - If yes → Scam count incremented in database
-
----
-
-## 📦 ML Models Setup
-
-### Training Models in Google Colab
-
-#### Pattern Agent
-```python
-from sklearn.pipeline import Pipeline
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-import joblib
-
-# Train pipeline
-model = Pipeline([
-    ('tfidf', TfidfVectorizer(max_features=10000, ngram_range=(1, 3))),
-    ('clf', LogisticRegression(C=1.0, class_weight='balanced'))
-])
-
-model.fit(X_train, y_train)
-
-# Save
-joblib.dump(model, 'pattern_agent_tiny.pkl')
-```
-
-#### Behavior Agent
-```python
-from sklearn.ensemble import IsolationForest
-import joblib
-
-# Train on normal transactions only
-X_train = df[df["label"] == 0][features].values
-
-model = IsolationForest(n_estimators=100, contamination=0.07, random_state=42)
-model.fit(X_train)
-
-# Save
-joblib.dump(model, 'behavior_iforest.pkl')
-```
-
-**Features:** `["amount", "hour", "frequency", "day_of_week", "delta_hours"]`
-
-### Deploying Models
-
-1. Download models from Colab
-2. Place in `Backend/models/`:
-   - `pattern_agent_tiny.pkl`
-   - `behavior_iforest.pkl`
-3. Restart backend - models auto-load
-
----
-
-## 🧪 Testing Sample Data
-
-### Seed Scam Database
-```bash
-cd Backend
-python seed_scam_data.py
-```
-
-This adds 10 sample scammers with various risk levels:
-- **Very High Risk:** `loanhelp@upi` (12 reports), `prizewinner@gpay` (15 reports)
-- **High Risk:** `urgentmoney@paytm` (8 reports)
-- **Medium Risk:** `joboffer@paytm` (3 reports)
-
-### Test Transactions
-
-**High Risk Example:**
-```
-UPI ID: loanhelp@upi
-Amount: 8000
-Message: urgent loan help needed
-```
-
-**Safe Transaction:**
-```
-UPI ID: friend@paytm
-Amount: 500
-Message: lunch split
-```
 
 ---
 
@@ -550,13 +331,6 @@ python app.py  # Runs on http://localhost:5000
 cd Frontend
 npm start  # Runs on http://localhost:3000
 ```
-
-### Adding New Agent
-1. Create agent class in `Backend/agents/`
-2. Implement `analyze(transaction)` method
-3. Return: `{'risk_score': float, 'message': str, 'details': str, 'evidence': list}`
-4. Register in `app.py`
-
 ---
 
 ## 📄 License
@@ -588,18 +362,6 @@ Built for hackathon demonstration purposes.
 - **Database:** Run `seed_scam_data.py` to populate sample scam data
 - **API Docs:** See inline comments in `Backend/app.py`
 - **Frontend Docs:** See `Frontend/src/services/api.js`
-
----
-
-## ✅ Quick Checklist
-
-- [ ] Backend dependencies installed
-- [ ] MongoDB connection configured
-- [ ] ML models placed in `Backend/models/`
-- [ ] Sample scam data seeded
-- [ ] Frontend dependencies installed
-- [ ] Both servers running (backend:5000, frontend:3000)
-- [ ] Test transaction flow works end-to-end
 
 ---
 
