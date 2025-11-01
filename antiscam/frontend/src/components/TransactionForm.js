@@ -1,16 +1,27 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Textarea } from './ui/textarea';
 import { Loader2 } from 'lucide-react';
 
-const TransactionForm = ({ onAnalyze, isAnalyzing }) => {
+const TransactionForm = ({ onAnalyze, isAnalyzing, initialData }) => {
   const [formData, setFormData] = useState({
-    upiId: '',
-    amount: '',
-    message: ''
+    upiId: initialData?.upi_id || initialData?.upiId || '',
+    amount: initialData?.amount || '',
+    message: initialData?.message || ''
   });
+
+  // Update form when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      setFormData({
+        upiId: initialData.upi_id || initialData.upiId || '',
+        amount: initialData.amount || '',
+        message: initialData.message || ''
+      });
+    }
+  }, [initialData]);
 
   const handleSubmit = (e) => {
     e.preventDefault();

@@ -1,5 +1,5 @@
 import "@/App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import LandingPage from "./pages/LandingPage";
 import AuthPage from "./pages/AuthPage";
@@ -8,6 +8,42 @@ import DemoPage from "./pages/DemoPage";
 import AIAnalysisPage from "./pages/AIAnalysisPage";
 import { Toaster } from "./components/ui/sonner";
 import { getToken, verifyToken, removeToken, removeUser } from "./services/auth";
+import AlertNotification from "./components/AlertNotification";
+import { useWebSocket } from "./hooks/useWebSocket";
+
+// Alert Manager Component - Must be inside Router
+function AlertManager({ isAuthenticated }) {
+  const { alerts, isConnected, dismissAlert } = useWebSocket();
+  const navigate = useNavigate(); // Now we can safely use useNavigate here
+
+  if (!isAuthenticated) {
+    return null; // Don't show alerts if not authenticated
+  }
+
+  const handleProceed = (path) => {
+    navigate(path);
+  };
+
+  return (
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-3 max-w-md w-full">
+      {alerts.map((alert, index) => (
+        <div
+          key={alert.id}
+          style={{ 
+            transform: `translateY(${index * 20}px)`,
+            zIndex: 50 - index
+          }}
+        >
+          <AlertNotification
+            alert={alert}
+            onDismiss={() => dismissAlert(alert.id)}
+            onProceed={handleProceed}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -55,6 +91,9 @@ function App() {
   return (
     <div className="App">
       <BrowserRouter>
+        {/* Alert Notification System - Must be inside Router for useNavigate to work */}
+        <AlertManager isAuthenticated={isAuthenticated} />
+        
         <Routes>
           {/* Public Landing Page */}
           <Route path="/" element={
@@ -78,6 +117,7 @@ function App() {
           } />
         </Routes>
       </BrowserRouter>
+      
       <Toaster richColors />
     </div>
   );

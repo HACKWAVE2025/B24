@@ -1,5 +1,9 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit
+import warnings
+# Suppress eventlet warnings
+warnings.filterwarnings('ignore', category=UserWarning)
 import os
 from datetime import datetime
 from agents.pattern_agent import PatternAgent
@@ -10,12 +14,46 @@ from database.db import get_db, connect
 from utils.score_aggregator import aggregate_scores
 from routes.auth import auth_bp
 from utils.auth import token_required
+from services.alert_service import AlertService
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for frontend
+CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS for frontend
+
+# Initialize SocketIO - Updated versions (5.5.1+) have better Python 3.12 support
+# Configure to allow both polling and websocket transports
+socketio = SocketIO(
+    app, 
+    cors_allowed_origins="*",
+    logger=False,
+    engineio_logger=False,
+    async_mode='threading'
+)
+
+# Initialize alert service
+alert_service = AlertService(socketio)
 
 # Register blueprints
 app.register_blueprint(auth_bp)
+
+# SocketIO events
+@socketio.on('connect')
+def handle_connect():
+    print('Client connected')
+    emit('connected', {'status': 'connected'})
+    # Send first alert immediately when client connects (if not sent yet)
+    alert_service.send_first_alert_if_needed()
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    print('Client disconnected')
+
+@socketio.on('request_alerts')
+def handle_request_alerts():
+    """Handle client request for alerts (resend first alert if needed)"""
+    print('Client requested alerts')
+    emit('alerts_enabled', {'status': 'enabled'})
+    # Send first alert immediately when client requests (if not sent yet)
+    alert_service.send_first_alert_if_needed()
 
 # Initialize MongoDB connection
 connect()
@@ -379,6 +417,13 @@ def health():
     return jsonify({'status': 'healthy'}), 200
 
 
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    # Start alert service
+    alert_service.start()
+    
+    # Run SocketIO server (threading mode works with standard Flask dev server)
+    print("🚀 Starting Flask-SocketIO server on http://localhost:5000")
+    print("📡 WebSocket alerts enabled")
+    socketio.run(app, debug=True, port=5000, host='0.0.0.0', allow_unsafe_werkzeug=True)
 

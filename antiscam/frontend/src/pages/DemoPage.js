@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import TransactionForm from '../components/TransactionForm';
@@ -10,6 +11,7 @@ import { analyzeTransaction as analyzeTransactionAPI, completeTransaction, submi
 import { toast } from 'sonner';
 
 const DemoPage = ({ onLogout }) => {
+  const [searchParams] = useSearchParams();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [results, setResults] = useState(null);
@@ -188,7 +190,15 @@ const DemoPage = ({ onLogout }) => {
             <p className="text-gray-600 text-lg">Enter transaction details to see AI analysis in action</p>
           </motion.div>
 
-          <TransactionForm onAnalyze={handleAnalyze} isAnalyzing={isAnalyzing} />
+          <TransactionForm 
+            onAnalyze={handleAnalyze} 
+            isAnalyzing={isAnalyzing}
+            initialData={{
+              upi_id: searchParams.get('upi_id') || '',
+              amount: searchParams.get('amount') || '',
+              message: searchParams.get('message') || ''
+            }}
+          />
 
           {/* Analyzing Animation */}
           <AnimatePresence>
