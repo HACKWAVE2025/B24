@@ -1,11 +1,11 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { Dialog, DialogContent } from './ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/dialog';
 import { Button } from './ui/button';
 import AgentCard from './AgentCard';
 import RiskMeter from './RiskMeter';
 import { AlertTriangle } from 'lucide-react';
 
-const ResultsModal = ({ isOpen, results, onCancel, onProceed, onReport, onClose }) => {
+const ResultsModal = ({ isOpen, results, onCancel, onProceed, onReport, onClose, darkMode }) => {
   if (!results) return null;
 
   const handleProceedClick = () => {
@@ -17,21 +17,26 @@ const ResultsModal = ({ isOpen, results, onCancel, onProceed, onReport, onClose 
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white border-2 border-[#00C896]/30 p-0" data-testid="results-modal">
-        <div className="sticky top-0 bg-white z-10 border-b border-gray-200 p-6">
+      <DialogContent className={darkMode ? "max-w-4xl max-h-[90vh] overflow-y-auto bg-gray-800 border-2 border-[#00C896]/30 p-0" : "max-w-4xl max-h-[90vh] overflow-y-auto bg-white border-2 border-[#00C896]/30 p-0"} data-testid="results-modal">
+        {/* Hidden title for accessibility */}
+        <DialogTitle className="sr-only">Transaction Risk Analysis Results</DialogTitle>
+        {/* Hidden description for accessibility */}
+        <DialogDescription className="sr-only">
+          View the AI analysis results for your transaction risk assessment.
+        </DialogDescription>
+        <div className={darkMode ? "sticky top-0 bg-gray-800 z-10 border-b border-gray-700 p-6" : "sticky top-0 bg-white z-10 border-b border-gray-200 p-6"}>
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-2">
-                <AlertTriangle className={`w-8 h-8 ${
-                  results.overallRisk >= 70 ? 'text-red-500' :
+                <AlertTriangle className={`w-8 h-8 ${results.overallRisk >= 70 ? 'text-red-500' :
                   results.overallRisk >= 40 ? 'text-orange-500' : 'text-green-500'
-                }`} />
-                <h2 className="text-2xl sm:text-3xl font-bold text-gray-900" data-testid="risk-title">
+                  }`} />
+                <h2 className={darkMode ? "text-2xl sm:text-3xl font-bold text-white" : "text-2xl sm:text-3xl font-bold text-gray-900"} data-testid="risk-title">
                   {results.overallRisk >= 70 ? 'High Risk Transaction!' :
-                   results.overallRisk >= 40 ? 'Medium Risk Transaction' : 'Low Risk Transaction'}
+                    results.overallRisk >= 40 ? 'Medium Risk Transaction' : 'Low Risk Transaction'}
                 </h2>
               </div>
-              <p className="text-sm text-gray-600">AI analysis complete</p>
+              <p className={darkMode ? "text-sm text-gray-400" : "text-sm text-gray-600"}>AI analysis complete</p>
             </div>
           </div>
         </div>
@@ -42,11 +47,11 @@ const ResultsModal = ({ isOpen, results, onCancel, onProceed, onReport, onClose 
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5 }}
           >
-            <RiskMeter score={results.overallRisk} />
+            <RiskMeter score={results.overallRisk} darkMode={darkMode} />
           </motion.div>
 
           <div>
-            <h3 className="text-xl font-semibold mb-4 text-gray-900">AI Agents Analysis</h3>
+            <h3 className={darkMode ? "text-xl font-semibold mb-4 text-white" : "text-xl font-semibold mb-4 text-gray-900"}>AI Agents Analysis</h3>
             <div className="space-y-4">
               {results.agents.map((agent, index) => (
                 <motion.div
@@ -55,7 +60,7 @@ const ResultsModal = ({ isOpen, results, onCancel, onProceed, onReport, onClose 
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1, duration: 0.4 }}
                 >
-                  <AgentCard agent={agent} />
+                  <AgentCard agent={agent} darkMode={darkMode} />
                 </motion.div>
               ))}
             </div>

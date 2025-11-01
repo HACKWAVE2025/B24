@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from agents.pattern_agent import PatternAgent
 from agents.network_agent import NetworkAgent
 from agents.behavior_agent import BehaviorAgent
@@ -147,6 +147,9 @@ def report_scam():
         
         # Save to MongoDB
         db = get_db()
+        if db is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+            
         scam_reports = db.scam_reports
         
         # Find existing report or create new
@@ -170,7 +173,7 @@ def report_scam():
                         "count": new_count,
                         "reasons": reasons,
                         "user_ids": user_ids,
-                        "updated_at": datetime.utcnow()
+                        "updated_at": datetime.now(timezone.utc)
                     }
                 }
             )
@@ -182,8 +185,8 @@ def report_scam():
                 "count": 1,
                 "reasons": [reason] if reason else [],
                 "user_ids": [user_id] if user_id else [],
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow()
+                "created_at": datetime.now(timezone.utc),
+                "updated_at": datetime.now(timezone.utc)
             })
             count = 1
         
@@ -203,6 +206,9 @@ def get_history(user_id):
     """
     try:
         db = get_db()
+        if db is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+            
         transactions = db.transactions
         
         # Get user transactions
@@ -254,6 +260,9 @@ def complete_transaction():
         
         # Save to MongoDB
         db = get_db()
+        if db is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+            
         transactions = db.transactions
         
         transaction_doc = {
@@ -263,7 +272,7 @@ def complete_transaction():
             "user_id": user_id,
             "time": data.get('time', ''),
             "risk_score": data.get('risk_score', 0),
-            "created_at": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc)
         }
         
         result = transactions.insert_one(transaction_doc)
@@ -304,6 +313,9 @@ def submit_feedback():
             return jsonify({'error': 'Missing required fields: receiver, was_scam'}), 400
         
         db = get_db()
+        if db is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+            
         feedback_collection = db.feedback
         
         # Save feedback
@@ -313,7 +325,7 @@ def submit_feedback():
             "user_id": user_id,
             "was_scam": was_scam,
             "comment": data.get('comment', ''),
-            "created_at": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc)
         }
         
         feedback_collection.insert_one(feedback_doc)
@@ -338,7 +350,7 @@ def submit_feedback():
                         "$set": {
                             "count": new_count,
                             "user_ids": user_ids,
-                            "updated_at": datetime.utcnow()
+                            "updated_at": datetime.now(timezone.utc)
                         }
                     }
                 )
@@ -349,8 +361,8 @@ def submit_feedback():
                     "count": 1,
                     "reasons": [data.get('comment', 'Confirmed scam by user')],
                     "user_ids": [user_id] if user_id else [],
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "created_at": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(timezone.utc)
                 })
         
         return jsonify({
@@ -369,4 +381,3 @@ def health():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-

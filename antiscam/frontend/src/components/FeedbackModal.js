@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from './ui/button';
-import { Dialog, DialogContent } from './ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/dialog';
 
-const FeedbackModal = ({ isOpen, onClose, onSubmit, receiver, riskScore }) => {
+const FeedbackModal = ({ isOpen, onClose, onSubmit, receiver, riskScore, darkMode }) => {
   const [wasScam, setWasScam] = useState(null);
   const [comment, setComment] = useState('');
 
@@ -30,37 +30,42 @@ const FeedbackModal = ({ isOpen, onClose, onSubmit, receiver, riskScore }) => {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-md" data-testid="feedback-modal">
+      <DialogContent className={darkMode ? "max-w-md bg-gray-800" : "max-w-md"} data-testid="feedback-modal">
+        {/* Hidden title for accessibility */}
+        <DialogTitle className="sr-only">Scam Detection Feedback</DialogTitle>
+        {/* Hidden description for accessibility */}
+        <DialogDescription className="sr-only">
+          Provide feedback on whether the detected scam was real or not.
+        </DialogDescription>
         <div className="text-center mb-6">
           <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
             <AlertTriangle className="w-8 h-8 text-white" />
           </div>
-          <h2 className="text-2xl font-bold mb-2 text-gray-900">
+          <h2 className={darkMode ? "text-2xl font-bold mb-2 text-white" : "text-2xl font-bold mb-2 text-gray-900"}>
             Scam Detected - Was it Real?
           </h2>
-          <p className="text-sm text-gray-600 mb-1">
+          <p className={darkMode ? "text-sm text-gray-400 mb-1" : "text-sm text-gray-600 mb-1"}>
             We detected a potential scam for:
           </p>
-          <p className="text-sm font-semibold text-gray-900">{receiver}</p>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className={darkMode ? "text-sm font-semibold text-white" : "text-sm font-semibold text-gray-900"}>{receiver}</p>
+          <p className={darkMode ? "text-xs text-gray-400 mt-2" : "text-xs text-gray-500 mt-2"}>
             Risk Score: {riskScore}%
           </p>
         </div>
 
         <div className="space-y-4 mb-6">
           <div>
-            <p className="text-sm font-medium mb-3 text-gray-700">
+            <p className={darkMode ? "text-sm font-medium mb-3 text-gray-300" : "text-sm font-medium mb-3 text-gray-700"}>
               Was this actually a scam?
             </p>
             <div className="flex gap-3">
               <Button
                 type="button"
                 onClick={() => setWasScam(true)}
-                className={`flex-1 ${
-                  wasScam === true
-                    ? 'bg-red-600 hover:bg-red-700 text-white'
-                    : 'bg-red-50 hover:bg-red-100 text-red-600 border border-red-200'
-                }`}
+                className={`flex-1 ${wasScam === true
+                  ? 'bg-red-600 hover:bg-red-700 text-white'
+                  : 'bg-red-50 hover:bg-red-100 text-red-600 border border-red-200'
+                  }`}
                 data-testid="feedback-yes"
               >
                 <XCircle className="w-4 h-4 mr-2" />
@@ -69,11 +74,10 @@ const FeedbackModal = ({ isOpen, onClose, onSubmit, receiver, riskScore }) => {
               <Button
                 type="button"
                 onClick={() => setWasScam(false)}
-                className={`flex-1 ${
-                  wasScam === false
-                    ? 'bg-green-600 hover:bg-green-700 text-white'
-                    : 'bg-green-50 hover:bg-green-100 text-green-600 border border-green-200'
-                }`}
+                className={`flex-1 ${wasScam === false
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-green-50 hover:bg-green-100 text-green-600 border border-green-200'
+                  }`}
                 data-testid="feedback-no"
               >
                 <CheckCircle className="w-4 h-4 mr-2" />
@@ -88,14 +92,14 @@ const FeedbackModal = ({ isOpen, onClose, onSubmit, receiver, riskScore }) => {
               animate={{ opacity: 1, height: 'auto' }}
               className="overflow-hidden"
             >
-              <label className="block text-sm font-medium mb-2 text-gray-700">
+              <label className={darkMode ? "block text-sm font-medium mb-2 text-gray-300" : "block text-sm font-medium mb-2 text-gray-700"}>
                 Additional Comment (Optional)
               </label>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Share any additional details..."
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C896] focus:border-[#00C896] resize-none"
+                className={darkMode ? "w-full p-3 border border-gray-600 rounded-lg focus:ring-2 focus:ring-[#00C896] focus:border-[#00C896] resize-none bg-gray-700 text-white" : "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#00C896] focus:border-[#00C896] resize-none"}
                 rows={3}
                 data-testid="feedback-comment"
               />
@@ -127,4 +131,3 @@ const FeedbackModal = ({ isOpen, onClose, onSubmit, receiver, riskScore }) => {
 };
 
 export default FeedbackModal;
-

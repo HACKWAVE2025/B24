@@ -46,20 +46,20 @@ const HomePage = ({ onLogout }) => {
             <div className="w-16 h-16 bg-gradient-to-br from-[#00C896] to-[#0091FF] rounded-xl flex items-center justify-center">
               <Shield className="w-10 h-10 text-white" />
             </div>
-            <span className="text-4xl font-bold gradient-text">FIGMENT</span>
+            <span className="text-4xl font-bold text-gray-900">FIGMENT</span>
           </div>
-          
+
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-gray-900">
             Prevent UPI Scams
             <br />
-            <span className="gradient-text">Before They Happen</span>
+            <span className="text-[#00C896]">Before They Happen</span>
           </h1>
-          
+
           <p className="text-lg sm:text-xl text-gray-600 mb-10 max-w-2xl mx-auto">
             FIGMENT is your AI co-pilot for safe, smarter financial decisions.
             Real-time scam detection with explainable AI.
           </p>
-          
+
           <div className="flex gap-4 justify-center flex-wrap">
             <Button
               onClick={() => navigate('/demo')}

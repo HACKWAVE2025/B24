@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Progress } from './ui/progress';
 
-const RiskMeter = ({ score }) => {
+const RiskMeter = ({ score, darkMode }) => {
   const getColor = (score) => {
     if (score >= 70) return '#FF6B6B';
     if (score >= 40) return '#FFB946';
@@ -20,7 +20,7 @@ const RiskMeter = ({ score }) => {
   return (
     <div className="glass p-6 rounded-xl" data-testid="risk-meter">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Overall Risk Score</h3>
+        <h3 className={darkMode ? "text-lg font-semibold text-white" : "text-lg font-semibold text-gray-900"}>Overall Risk Score</h3>
         <span
           className="px-4 py-2 rounded-full font-bold text-sm"
           style={{ backgroundColor: `${color}20`, color: color }}
@@ -33,7 +33,7 @@ const RiskMeter = ({ score }) => {
       <div className="flex items-center justify-center py-8">
         <div className="relative w-48 h-48">
           <svg className="w-full h-full -rotate-90">
-            <circle cx="96" cy="96" r="88" fill="none" stroke="#E2E8F0" strokeWidth="12" />
+            <circle cx="96" cy="96" r="88" fill="none" stroke={darkMode ? "#374151" : "#E2E8F0"} strokeWidth="12" />
             <motion.circle
               cx="96"
               cy="96"
@@ -60,13 +60,13 @@ const RiskMeter = ({ score }) => {
             >
               {score}%
             </motion.span>
-            <span className="text-sm text-gray-600 mt-1">Risk Level</span>
+            <span className={darkMode ? "text-sm text-gray-400 mt-1" : "text-sm text-gray-600 mt-1"}>Risk Level</span>
           </div>
         </div>
       </div>
 
       <div className="mt-4">
-        <div className="flex justify-between text-xs text-gray-600 mb-2">
+        <div className={darkMode ? "flex justify-between text-xs text-gray-400 mb-2" : "flex justify-between text-xs text-gray-600 mb-2"}>
           <span>Safe</span>
           <span>Risky</span>
         </div>

@@ -5,7 +5,7 @@ import TopNav from '../components/TopNav';
 import { LineChart, Line, AreaChart, Area, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingUp, Activity, Brain, Shield } from 'lucide-react';
 
-const AIAnalysisPage = ({ onLogout }) => {
+const AIAnalysisPage = ({ onLogout, darkMode, toggleDarkMode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const trendData = [
@@ -35,11 +35,11 @@ const AIAnalysisPage = ({ onLogout }) => {
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFB]">
+    <div className={darkMode ? "min-h-screen bg-gray-900" : "min-h-screen bg-[#F8FAFB]"}>
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onLogout={onLogout} />
-      <TopNav onMenuClick={() => setSidebarOpen(true)} />
-      
-      <section className="pt-32 pb-20 px-6" data-testid="ai-analysis-section">
+      <TopNav onMenuClick={() => setSidebarOpen(true)} darkMode={darkMode} onDarkModeToggle={toggleDarkMode} />
+
+      <section className="pt-24 pb-20 px-6" data-testid="ai-analysis-section">
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -47,8 +47,8 @@ const AIAnalysisPage = ({ onLogout }) => {
             transition={{ duration: 0.6 }}
             className="mb-12"
           >
-            <h1 className="text-4xl sm:text-5xl font-bold mb-4 text-gray-900">AI Analysis & Insights</h1>
-            <p className="text-gray-600 text-lg">Deep dive into AI performance metrics and learning patterns</p>
+            <h1 className={darkMode ? "text-4xl sm:text-5xl font-bold mb-4 text-white" : "text-4xl sm:text-5xl font-bold mb-4 text-gray-900"}>AI Analysis & Insights</h1>
+            <p className={darkMode ? "text-gray-300 text-lg" : "text-gray-600 text-lg"}>Deep dive into AI performance metrics and learning patterns</p>
           </motion.div>
 
           {/* Key Metrics */}
@@ -72,7 +72,7 @@ const AIAnalysisPage = ({ onLogout }) => {
                   </div>
                 </div>
                 <div className="text-3xl font-bold mb-1" style={{ color: metric.color }}>{metric.value}</div>
-                <div className="text-sm text-gray-600">{metric.label}</div>
+                <div className={darkMode ? "text-sm text-gray-400" : "text-sm text-gray-600"}>{metric.label}</div>
               </motion.div>
             ))}
           </div>
@@ -85,14 +85,14 @@ const AIAnalysisPage = ({ onLogout }) => {
             className="glass p-8 rounded-2xl mb-12"
             data-testid="detection-trend-chart"
           >
-            <h3 className="text-2xl font-bold mb-6 text-gray-900">Scam Detection Trend & Accuracy</h3>
+            <h3 className={darkMode ? "text-2xl font-bold mb-6 text-white" : "text-2xl font-bold mb-6 text-gray-900"}>Scam Detection Trend & Accuracy</h3>
             <ResponsiveContainer width="100%" height={400}>
               <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="month" tick={{ fill: '#64748B' }} />
-                <YAxis yAxisId="left" tick={{ fill: '#64748B' }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#64748B' }} />
-                <Tooltip contentStyle={{ backgroundColor: 'white', border: '1px solid #E2E8F0', borderRadius: '8px' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#E2E8F0"} />
+                <XAxis dataKey="month" tick={{ fill: darkMode ? '#9CA3AF' : '#64748B' }} />
+                <YAxis yAxisId="left" tick={{ fill: darkMode ? '#9CA3AF' : '#64748B' }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fill: darkMode ? '#9CA3AF' : '#64748B' }} />
+                <Tooltip contentStyle={{ backgroundColor: darkMode ? '#1F2937' : 'white', border: darkMode ? '1px solid #374151' : '1px solid #E2E8F0', borderRadius: '8px', color: darkMode ? 'white' : 'black' }} />
                 <Legend />
                 <Line yAxisId="left" type="monotone" dataKey="scams" stroke="#FF6B6B" strokeWidth={3} name="Total Scams" dot={{ fill: '#FF6B6B', r: 5 }} />
                 <Line yAxisId="left" type="monotone" dataKey="detected" stroke="#00C896" strokeWidth={3} name="Detected" dot={{ fill: '#00C896', r: 5 }} />
@@ -109,18 +109,18 @@ const AIAnalysisPage = ({ onLogout }) => {
             className="glass p-8 rounded-2xl mb-12"
             data-testid="agent-radar-chart"
           >
-            <h3 className="text-2xl font-bold mb-6 text-gray-900">AI Agents Performance Comparison</h3>
+            <h3 className={darkMode ? "text-2xl font-bold mb-6 text-white" : "text-2xl font-bold mb-6 text-gray-900"}>AI Agents Performance Comparison</h3>
             <ResponsiveContainer width="100%" height={500}>
               <RadarChart data={agentRadarData}>
-                <PolarGrid stroke="#E2E8F0" />
-                <PolarAngleAxis dataKey="metric" tick={{ fill: '#64748B', fontSize: 12 }} />
-                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: '#64748B' }} />
+                <PolarGrid stroke={darkMode ? "#374151" : "#E2E8F0"} />
+                <PolarAngleAxis dataKey="metric" tick={{ fill: darkMode ? '#9CA3AF' : '#64748B', fontSize: 12 }} />
+                <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fill: darkMode ? '#9CA3AF' : '#64748B' }} />
                 <Radar name="Pattern Agent" dataKey="patternAgent" stroke="#00C896" fill="#00C896" fillOpacity={0.3} />
                 <Radar name="Network Agent" dataKey="networkAgent" stroke="#0091FF" fill="#0091FF" fillOpacity={0.3} />
                 <Radar name="Behavior Agent" dataKey="behaviorAgent" stroke="#A78BFA" fill="#A78BFA" fillOpacity={0.3} />
                 <Radar name="Biometric Agent" dataKey="biometricAgent" stroke="#F472B6" fill="#F472B6" fillOpacity={0.3} />
                 <Legend />
-                <Tooltip contentStyle={{ backgroundColor: 'white', border: '1px solid #E2E8F0', borderRadius: '8px' }} />
+                <Tooltip contentStyle={{ backgroundColor: darkMode ? '#1F2937' : 'white', border: darkMode ? '1px solid #374151' : '1px solid #E2E8F0', borderRadius: '8px', color: darkMode ? 'white' : 'black' }} />
               </RadarChart>
             </ResponsiveContainer>
           </motion.div>
@@ -133,25 +133,25 @@ const AIAnalysisPage = ({ onLogout }) => {
             className="glass p-8 rounded-2xl"
             data-testid="confidence-chart"
           >
-            <h3 className="text-2xl font-bold mb-6 text-gray-900">AI Confidence Score Growth</h3>
+            <h3 className={darkMode ? "text-2xl font-bold mb-6 text-white" : "text-2xl font-bold mb-6 text-gray-900"}>AI Confidence Score Growth</h3>
             <ResponsiveContainer width="100%" height={300}>
               <AreaChart data={confidenceOverTime}>
                 <defs>
                   <linearGradient id="colorConfidence" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#00C896" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#00C896" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#00C896" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#00C896" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
-                <XAxis dataKey="week" tick={{ fill: '#64748B' }} />
-                <YAxis domain={[70, 100]} tick={{ fill: '#64748B' }} />
-                <Tooltip contentStyle={{ backgroundColor: 'white', border: '1px solid #E2E8F0', borderRadius: '8px' }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? "#374151" : "#E2E8F0"} />
+                <XAxis dataKey="week" tick={{ fill: darkMode ? '#9CA3AF' : '#64748B' }} />
+                <YAxis domain={[70, 100]} tick={{ fill: darkMode ? '#9CA3AF' : '#64748B' }} />
+                <Tooltip contentStyle={{ backgroundColor: darkMode ? '#1F2937' : 'white', border: darkMode ? '1px solid #374151' : '1px solid #E2E8F0', borderRadius: '8px', color: darkMode ? 'white' : 'black' }} />
                 <Area type="monotone" dataKey="confidence" stroke="#00C896" strokeWidth={3} fillOpacity={1} fill="url(#colorConfidence)" />
               </AreaChart>
             </ResponsiveContainer>
-            <div className="mt-6 bg-green-50 p-4 rounded-lg border border-green-200">
-              <p className="text-sm text-gray-700">
-                <span className="font-semibold text-green-700">Insight:</span> The AI confidence score has improved by 20% over the past 6 weeks through continuous learning from user feedback and new scam pattern detection.
+            <div className={darkMode ? "mt-6 bg-green-900/30 p-4 rounded-lg border border-green-800" : "mt-6 bg-green-50 p-4 rounded-lg border border-green-200"}>
+              <p className={darkMode ? "text-sm text-gray-300" : "text-sm text-gray-700"}>
+                <span className={darkMode ? "font-semibold text-green-400" : "font-semibold text-green-700"}>Insight:</span> The AI confidence score has improved by 20% over the past 6 weeks through continuous learning from user feedback and new scam pattern detection.
               </p>
             </div>
           </motion.div>

@@ -1,17 +1,20 @@
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
+from pymongo.database import Database
+from typing import Optional
 import os
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
-MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb+srv://akifaliparvez:<db_password>@cluster0.lg4jnnj.mongodb.net/?appName=Cluster0')
-DB_NAME = os.getenv('DB_NAME', 'figment')
+# Make sure to use the environment variable, with a proper fallback
+MONGODB_URI = os.getenv('MONGODB_URI')
+DB_NAME = os.getenv('DB_NAME', 'AntiScam')
 
 # Global connection
 _client = None
-_db = None
+_db: Optional[Database] = None
 
 def get_db():
     """Get MongoDB database instance"""
@@ -25,6 +28,10 @@ def connect():
     global _client, _db
     try:
         if _client is None:
+            # Check if MONGODB_URI is set
+            if not MONGODB_URI:
+                raise ValueError("MONGODB_URI not set in .env file")
+            
             # Replace <db_password> placeholder if still present
             connection_string = MONGODB_URI
             if '<db_password>' in connection_string:
@@ -32,7 +39,13 @@ def connect():
                 print("   Replace <db_password> in MONGODB_URI with your actual password")
                 raise ValueError("MongoDB password not set in .env file")
             
-            _client = MongoClient(connection_string, serverSelectionTimeoutMS=5000)
+            print(f"Attempting to connect to MongoDB")
+            _client = MongoClient(
+                connection_string, 
+                serverSelectionTimeoutMS=5000,
+                connectTimeoutMS=5000,
+                socketTimeoutMS=5000
+            )
             # Test connection
             _client.admin.command('ping')
             print("✅ Connected to MongoDB successfully!")
@@ -43,9 +56,15 @@ def connect():
     except ConnectionFailure as e:
         print(f"❌ Failed to connect to MongoDB: {e}")
         print("   Please check your MONGODB_URI in .env file")
+        print("   Common issues:")
+        print("   - Incorrect password in connection string")
+        print("   - Network/firewall restrictions")
+        print("   - IP not whitelisted in MongoDB Atlas")
+        print("   - MongoDB Atlas cluster not running")
         raise
     except Exception as e:
         print(f"❌ MongoDB connection error: {e}")
+        print("   Please verify your MongoDB connection string in .env file")
         raise
 
 def init_collections():
@@ -54,28 +73,30 @@ def init_collections():
     if _db is None:
         connect()
     
-    # Scam Reports Collection
-    scam_reports = _db.scam_reports
-    scam_reports.create_index("receiver_id", unique=True)
-    scam_reports.create_index("updated_at")
-    
-    # Transactions Collection
-    transactions = _db.transactions
-    transactions.create_index("user_id")
-    transactions.create_index("receiver_id")
-    transactions.create_index("created_at")
-    
-    # User Behavior Collection
-    user_behavior = _db.user_behavior
-    user_behavior.create_index("user_id", unique=True)
-    
-    # Feedback Collection
-    feedback = _db.feedback
-    feedback.create_index("transaction_id")
-    feedback.create_index("receiver_id")
-    feedback.create_index("created_at")
-    
-    print("✅ Collections initialized with indexes!")
+    # Ensure _db is not None before using it
+    if _db is not None:
+        # Scam Reports Collection
+        scam_reports = _db.scam_reports
+        scam_reports.create_index("receiver_id", unique=True)
+        scam_reports.create_index("updated_at")
+        
+        # Transactions Collection
+        transactions = _db.transactions
+        transactions.create_index("user_id")
+        transactions.create_index("receiver_id")
+        transactions.create_index("created_at")
+        
+        # User Behavior Collection
+        user_behavior = _db.user_behavior
+        user_behavior.create_index("user_id", unique=True)
+        
+        # Feedback Collection
+        feedback = _db.feedback
+        feedback.create_index("transaction_id")
+        feedback.create_index("receiver_id")
+        feedback.create_index("created_at")
+        
+        print("✅ Collections initialized with indexes!")
 
 def close_connection():
     """Close MongoDB connection"""

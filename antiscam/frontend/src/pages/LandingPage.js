@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Eye, Network, User, ArrowRight, Zap, Brain, Lock, TrendingUp, BarChart3, Activity, Sparkles, Star } from 'lucide-react';
+import { Shield, Eye, Network, User, ArrowRight, Zap, Brain, Lock, TrendingUp, BarChart3, Activity, Sparkles, Star, Moon, Sun } from 'lucide-react';
 import { Button } from '../components/ui/button';
 
-const LandingPage = () => {
+const LandingPage = ({ darkMode, toggleDarkMode }) => {
   const navigate = useNavigate();
 
   const features = [
@@ -48,7 +48,7 @@ const LandingPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#EEF2FF] via-[#F5F8FF] to-[#E0F2FE] pattern-dots">
+    <div className={darkMode ? "min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 pattern-dots" : "min-h-screen bg-gradient-to-br from-[#EEF2FF] via-[#F5F8FF] to-[#E0F2FE] pattern-dots"}>
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-indigo-200/50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -56,9 +56,17 @@ const LandingPage = () => {
             <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-blue-500 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
               <Shield className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-bold gradient-text">FIGMENT</span>
+            <span className="text-2xl font-bold text-indigo-600 dark:text-white">FIGMENT</span>
           </div>
           <div className="flex items-center gap-4">
+            <Button
+              onClick={toggleDarkMode}
+              variant="ghost"
+              className="text-gray-700 hover:text-indigo-600 hover:bg-indigo-50"
+              data-testid="dark-mode-toggle"
+            >
+              {darkMode ? <Sun className="w-5 h-5 text-yellow-400" /> : <Moon className="w-5 h-5" />}
+            </Button>
             <Button
               onClick={() => navigate('/auth')}
               variant="ghost"
@@ -84,7 +92,7 @@ const LandingPage = () => {
         <div className="absolute top-20 -left-32 w-[500px] h-[500px] bg-gradient-to-br from-indigo-400/30 via-blue-400/20 to-transparent rounded-full blur-3xl animate-float"></div>
         <div className="absolute top-40 -right-32 w-[600px] h-[600px] bg-gradient-to-bl from-blue-400/25 via-cyan-400/20 to-transparent rounded-full blur-3xl" style={{ animation: 'float 10s ease-in-out infinite 2s' }}></div>
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[400px] h-[400px] bg-gradient-to-t from-indigo-300/20 to-transparent rounded-full blur-3xl" style={{ animation: 'float 12s ease-in-out infinite 4s' }}></div>
-        
+
         <div className="max-w-6xl mx-auto relative z-10">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -103,18 +111,18 @@ const LandingPage = () => {
                 <span className="text-sm font-semibold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent">AI-Powered UPI Protection</span>
               </div>
             </motion.div>
-            
-            <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-gray-900" data-testid="hero-title">
+
+            <h1 className={darkMode ? "text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-white" : "text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-tight text-gray-900"} data-testid="hero-title">
               Stop UPI Scams
               <br />
-              <span className="gradient-text animate-gradient">Before They Happen</span>
+              <span className="text-indigo-600 animate-gradient">Before They Happen</span>
             </h1>
-            
-            <p className="text-xl text-gray-600 mb-10 max-w-3xl mx-auto leading-relaxed">
+
+            <p className={darkMode ? "text-xl text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed" : "text-xl text-gray-600 mb-10 max-w-3xl mx-auto leading-relaxed"}>
               FIGMENT uses 4 specialized AI agents to analyze every transaction in real-time.
               Get instant risk assessment and protect your money with explainable AI.
             </p>
-            
+
             <div className="flex gap-4 justify-center flex-wrap">
               <Button
                 onClick={() => navigate('/auth')}
@@ -139,7 +147,7 @@ const LandingPage = () => {
                   <div className="flex items-center justify-center gap-2 mb-3">
                     <div className="text-indigo-600">{stat.icon}</div>
                   </div>
-                  <div className="text-4xl font-bold gradient-text mb-2">{stat.value}</div>
+                  <div className="text-4xl font-bold  mb-2">{stat.value}</div>
                   <div className="text-sm text-gray-600 font-medium">{stat.label}</div>
                 </motion.div>
               ))}
@@ -159,8 +167,8 @@ const LandingPage = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-16"
           >
-            <h2 className="text-4xl sm:text-5xl font-bold mb-4 text-gray-900">Why Choose FIGMENT?</h2>
-            <p className="text-gray-600 text-lg max-w-2xl mx-auto">Advanced AI technology to keep your transactions safe</p>
+            <h2 className={darkMode ? "text-4xl sm:text-5xl font-bold mb-4 text-white" : "text-4xl sm:text-5xl font-bold mb-4 text-gray-900"}>Why Choose FIGMENT?</h2>
+            <p className={darkMode ? "text-gray-300 text-lg max-w-2xl mx-auto" : "text-gray-600 text-lg max-w-2xl mx-auto"}>Advanced AI technology to keep your transactions safe</p>
           </motion.div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -178,8 +186,8 @@ const LandingPage = () => {
                 <div className={`w-14 h-14 bg-gradient-to-br ${feature.gradient} rounded-xl flex items-center justify-center mb-4 shadow-lg`}>
                   <div className="text-white">{feature.icon}</div>
                 </div>
-                <h3 className="text-xl font-bold mb-2 text-gray-900">{feature.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{feature.description}</p>
+                <h3 className={darkMode ? "text-xl font-bold mb-2 text-white" : "text-xl font-bold mb-2 text-gray-900"}>{feature.title}</h3>
+                <p className={darkMode ? "text-gray-300 text-sm leading-relaxed" : "text-gray-600 text-sm leading-relaxed"}>{feature.description}</p>
               </motion.div>
             ))}
           </div>
@@ -187,7 +195,7 @@ const LandingPage = () => {
       </section>
 
       {/* AI Agents Section */}
-      <section className="py-20 px-6 bg-gradient-to-br from-white/50 to-indigo-50/50">
+      <section className={darkMode ? "py-20 px-6 bg-gradient-to-br from-gray-800/50 to-gray-900/50" : "py-20 px-6 bg-gradient-to-br from-white/50 to-indigo-50/50"}>
         <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0 }}
@@ -196,8 +204,8 @@ const LandingPage = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-16"
           >
-            <h2 className="text-4xl sm:text-5xl font-bold mb-4 text-gray-900">Meet Our AI Agents</h2>
-            <p className="text-gray-600 text-lg">4 specialized agents working together to protect you</p>
+            <h2 className={darkMode ? "text-4xl sm:text-5xl font-bold mb-4 text-white" : "text-4xl sm:text-5xl font-bold mb-4 text-gray-900"}>Meet Our AI Agents</h2>
+            <p className={darkMode ? "text-gray-300 text-lg" : "text-gray-600 text-lg"}>4 specialized agents working together to protect you</p>
           </motion.div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -217,8 +225,8 @@ const LandingPage = () => {
                   <div className="w-20 h-20 mx-auto rounded-2xl flex items-center justify-center mb-4 shadow-xl" style={{ background: `linear-gradient(135deg, ${agent.color} 0%, ${agent.color}dd 100%)` }}>
                     <div className="text-white">{agent.icon}</div>
                   </div>
-                  <h3 className="text-lg font-bold mb-2 text-gray-900">{agent.name}</h3>
-                  <p className="text-sm text-gray-600">{agent.desc}</p>
+                  <h3 className={darkMode ? "text-lg font-bold mb-2 text-white" : "text-lg font-bold mb-2 text-gray-900"}>{agent.name}</h3>
+                  <p className={darkMode ? "text-sm text-gray-300" : "text-sm text-gray-600"}>{agent.desc}</p>
                 </div>
               </motion.div>
             ))}
@@ -236,8 +244,8 @@ const LandingPage = () => {
             transition={{ duration: 0.6 }}
             className="text-center mb-16"
           >
-            <h2 className="text-4xl sm:text-5xl font-bold mb-4 text-gray-900">How It Works</h2>
-            <p className="text-gray-600 text-lg">Simple, fast, and secure</p>
+            <h2 className={darkMode ? "text-4xl sm:text-5xl font-bold mb-4 text-white" : "text-4xl sm:text-5xl font-bold mb-4 text-gray-900"}>How It Works</h2>
+            <p className={darkMode ? "text-gray-300 text-lg" : "text-gray-600 text-lg"}>Simple, fast, and secure</p>
           </motion.div>
 
           <div className="grid md:grid-cols-3 gap-12">
@@ -257,8 +265,8 @@ const LandingPage = () => {
                 <div className={`w-24 h-24 mx-auto mb-6 bg-gradient-to-br ${item.gradient} rounded-3xl flex items-center justify-center text-white text-4xl font-bold shadow-2xl hover-lift`} style={{ boxShadow: '0 20px 40px rgba(79, 70, 229, 0.3)' }}>
                   {item.step}
                 </div>
-                <h3 className="text-2xl font-bold mb-3 text-gray-900">{item.title}</h3>
-                <p className="text-gray-600 text-lg">{item.desc}</p>
+                <h3 className={darkMode ? "text-2xl font-bold mb-3 text-white" : "text-2xl font-bold mb-3 text-gray-900"}>{item.title}</h3>
+                <p className={darkMode ? "text-gray-300 text-lg" : "text-gray-600 text-lg"}>{item.desc}</p>
                 {index < 2 && (
                   <div className="hidden md:block absolute top-12 -right-6 text-indigo-300">
                     <ArrowRight className="w-8 h-8" />
@@ -282,8 +290,8 @@ const LandingPage = () => {
           >
             <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-blue-500/10 to-cyan-500/10"></div>
             <div className="relative z-10">
-              <h2 className="text-4xl font-bold mb-4 text-gray-900">Ready to Protect Your Money?</h2>
-              <p className="text-xl text-gray-600 mb-8">Join thousands who trust FIGMENT for safe UPI transactions</p>
+              <h2 className={darkMode ? "text-4xl font-bold mb-4 text-white" : "text-4xl font-bold mb-4 text-gray-900"}>Ready to Protect Your Money?</h2>
+              <p className={darkMode ? "text-xl text-gray-300 mb-8" : "text-xl text-gray-600 mb-8"}>Join thousands who trust FIGMENT for safe UPI transactions</p>
               <Button
                 onClick={() => navigate('/auth')}
                 className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 hover:from-indigo-700 hover:via-blue-700 hover:to-cyan-700 text-white font-bold px-12 py-7 text-lg rounded-full shadow-2xl shadow-indigo-500/50"
@@ -297,16 +305,16 @@ const LandingPage = () => {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-indigo-200/50 bg-white/50 backdrop-blur-sm py-12 px-6">
+      <footer className={darkMode ? "border-t border-gray-700 bg-gray-900/50 backdrop-blur-sm py-12 px-6" : "border-t border-gray-200 bg-gray-50/50 backdrop-blur-sm py-12 px-6"}>
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-blue-500 rounded-lg flex items-center justify-center shadow-lg">
                 <Shield className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xl font-bold gradient-text">FIGMENT</span>
+              <span className="text-xl font-bold ">FIGMENT</span>
             </div>
-            <p className="text-sm text-gray-600">© 2025 FIGMENT. Built with AI for safer digital payments.</p>
+            <p className={darkMode ? "text-sm text-gray-400" : "text-sm text-gray-600"}>© 2025 FIGMENT. Built with AI for safer digital payments.</p>
           </div>
         </div>
       </footer>
