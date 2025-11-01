@@ -1,183 +1,174 @@
-import pickle
 import os
 import warnings
 import numpy as np
 import joblib
+<<<<<<< HEAD
 from datetime import datetime, timedelta, timezone
+=======
+import pandas as pd
+from datetime import datetime
+from sklearn.ensemble import IsolationForest
+>>>>>>> 8b231281e303f9616859ac75b7ed2821ac187f70
 from database.db import get_db
 
-# Suppress sklearn version warnings (models trained with newer version work fine)
+# Suppress sklearn warnings
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
+
 
 class BehaviorAgent:
     """
-    Behavior Agent: Learns user transaction habits and detects anomalies
-    Uses sklearn IsolationForest model trained on user transaction patterns
-    Features: ["amount", "hour", "frequency", "day_of_week", "delta_hours"]
+    Behavior Agent:
+    - Detects anomalies using IsolationForest.
+    - Stores user feedback locally (data/behavior_dataset.csv).
+    - Retrains automatically after threshold feedbacks (default: 10).
     """
-    
+
     def __init__(self):
-        # Model path - using IsolationForest model
-        models_dir = os.path.join(os.path.dirname(__file__), '..', 'models')
-        self.model_path = os.path.join(models_dir, 'behavior_iforest.pkl')
-        
-        # Load model
+        base_dir = os.path.dirname(__file__)
+        self.models_dir = os.path.join(base_dir, '..', 'models')
+        self.data_dir = os.path.join(base_dir, '..', 'data')
+        os.makedirs(self.data_dir, exist_ok=True)
+        os.makedirs(self.models_dir, exist_ok=True)
+
+        # File paths
+        self.model_path = os.path.join(self.models_dir, 'behavior_iforest.pkl')
+        self.dataset_path = os.path.join(self.data_dir, 'behavior_dataset.csv')
+        self.feedback_counter_path = os.path.join(self.data_dir, 'feedback_counter.txt')
+
+        self.threshold = 10
         self.model = None
-        
+        self._load_model()
+
+    # ------------------- MODEL MANAGEMENT -------------------
+    def _load_model(self):
+        """Load IsolationForest model if available."""
         try:
-            if os.path.exists(self.model_path):
-                # Check file size
-                model_size = os.path.getsize(self.model_path)
-                if model_size == 0:
-                    print(f"❌ Behavior model file is empty: {self.model_path}")
-                else:
-                    print(f"📦 Loading behavior model from: {self.model_path} ({model_size:,} bytes)")
-                    # Load with joblib (trained in Colab)
-                    try:
-                        self.model = joblib.load(self.model_path)
-                        print("✅ Behavior Agent IsolationForest model loaded successfully!")
-                    except Exception as e:
-                        print(f"❌ Could not load behavior model: {e}")
+            if os.path.exists(self.model_path) and os.path.getsize(self.model_path) > 0:
+                print(f"📦 Loading Behavior model → {self.model_path}")
+                self.model = joblib.load(self.model_path)
+                print("✅ IsolationForest model loaded successfully!")
             else:
-                print(f"⚠️  Behavior model not found at: {self.model_path}")
-                print("   Looking for: behavior_iforest.pkl")
-                print("   Behavior Agent will use rule-based fallback.")
+                print(f"⚠️ No valid model found. Run retrain_behavior_manual.py first.")
+                self.model = None
         except Exception as e:
-            print(f"❌ Error loading behavior model: {e}")
-            print("   Using rule-based analysis as fallback.")
-    
+            print(f"❌ Could not load model: {e}")
+            self.model = None
+
+    def reload_model(self):
+        """Reloads the model after retraining."""
+        print("🔁 Reloading updated model...")
+        self._load_model()
+
+    # ------------------- MAIN ANALYSIS -------------------
     def analyze(self, transaction):
-        """
-        Analyze transaction against user's normal behavior patterns using IsolationForest
-        
-        Args:
-            transaction: dict with 'user_id', 'amount', 'time', etc.
-        
-        Returns:
-            dict with risk_score, message, details, evidence
-        """
-        user_id = transaction.get('user_id', '')
-        amount = float(transaction.get('amount', 0))
-        time_str = transaction.get('time', '')
-        
-        # Get user behavior history
-        user_pattern = self._get_user_pattern(user_id)
-        
-        # If model exists, use IsolationForest for anomaly detection
-        if self.model:
-            try:
-                features = self._extract_features(transaction, user_pattern)
-                
-                # IsolationForest returns: -1 for anomalies, 1 for normal
+        """Analyze a transaction using the IsolationForest or fallback."""
+        try:
+            user_id = transaction.get('user_id', '')
+            amount = float(transaction.get('amount', 0))
+            time_str = transaction.get('time', '')
+
+            user_pattern = self._get_user_pattern(user_id)
+            features = self._extract_features(transaction, user_pattern)
+
+            if self.model:
                 prediction = self.model.predict([features])[0]
-                anomaly_score = self.model.score_samples([features])[0]
-                
-                # Convert to risk score (0-100)
-                # IsolationForest: lower anomaly_score = more anomalous
-                # Score is typically negative for anomalies, close to 0 or positive for normal
-                # We'll map: anomaly_score < -0.1 → high risk, -0.1 to 0 → medium, > 0 → low
-                
-                if prediction == -1:  # Anomaly detected
-                    # High risk if predicted as anomaly
-                    if anomaly_score < -0.2:
-                        risk_score = 85
-                    elif anomaly_score < -0.1:
-                        risk_score = 70
-                    else:
-                        risk_score = 60
-                else:  # Normal behavior (prediction == 1)
-                    # Low risk for normal behavior
-                    if anomaly_score > 0.1:
-                        risk_score = 15
-                    elif anomaly_score > 0:
-                        risk_score = 25
-                    else:
-                        risk_score = 35
-                
-                risk_score = min(max(risk_score, 0), 100)  # Clamp to 0-100
-                
-            except Exception as e:
-                print(f"Error in behavior model prediction: {e}")
-                # Fallback to rule-based if model fails
+                score = self.model.score_samples([features])[0]
+
+                if prediction == -1:
+                    risk_score = 80 if score < -0.2 else 65
+                else:
+                    risk_score = 25 if score > 0.1 else 35
+            else:
+                print("⚠️ No model found — using fallback rules.")
                 risk_score = self._rule_based_analysis(transaction, user_pattern)
-        else:
-            # No model available - use rule-based fallback
-            print("Behavior IsolationForest model not available. Using rule-based analysis.")
-            risk_score = self._rule_based_analysis(transaction, user_pattern)
-        
-        # Generate explanation
-        evidence = []
-        message = "Transaction matches your normal patterns"
-        
-        if risk_score >= 70:
-            message = "🚨 Unusual behavior detected!"
-            evidence.append("IsolationForest model detected significant deviation from your typical transaction patterns")
-        elif risk_score >= 40:
-            message = "⚠️ Somewhat unusual activity"
-            evidence.append("IsolationForest model detected minor deviation from normal patterns")
-        else:
-            message = "✓ Behavior matches your normal patterns"
-            evidence.append("Transaction matches your historical behavior patterns")
-        
-        # Add specific evidence
-        if user_pattern:
-            if amount > user_pattern.get('avg_amount', 0) * 2:
-                evidence.append(f"Amount (₹{amount}) is much higher than your average (₹{user_pattern.get('avg_amount', 0):.0f})")
-            
-            if time_str:
-                hour = self._extract_hour(time_str)
-                if hour and (hour < 6 or hour > 23):
-                    evidence.append(f"Transaction time ({time_str}) is unusual - you rarely transact at this hour")
-        
-        details = f"""
-        Analyzed transaction against your historical behavior patterns using IsolationForest anomaly detection.
-        {'This transaction shows significant anomalies compared to your normal activity.' if risk_score >= 40 else 'This transaction aligns with your typical transaction patterns.'}
-        Behavior analysis helps detect if you're acting under unusual circumstances.
-        """
-        
-        # Update user behavior pattern
-        self._update_user_pattern(user_id, amount, time_str)
-        
-        return {
-            'risk_score': round(risk_score, 1),
-            'message': message,
-            'details': details.strip(),
-            'evidence': evidence
-        }
-    
-    def _get_user_pattern(self, user_id):
-        """Get user's historical behavior pattern"""
-        db = get_db()
-        user_behavior = db.user_behavior
-        
-        pattern = user_behavior.find_one({"user_id": user_id})
-        
-        if pattern:
+
+            message, evidence = self._generate_message(risk_score, amount, time_str, user_pattern)
+            self._update_user_pattern(user_id, amount, time_str)
+
             return {
-                'avg_amount': pattern.get('avg_amount', 0) or 0,
-                'transaction_count': pattern.get('transaction_count', 0) or 0,
-                'last_transaction_at': pattern.get('last_transaction_at'),
-                'common_times': pattern.get('common_times', '') or ''
+                "risk_score": round(risk_score, 1),
+                "message": message,
+                "details": "Analyzed using IsolationForest-based anomaly detection.",
+                "evidence": evidence
             }
-        return None
-    
+
+        except Exception as e:
+            print(f"❌ Error during analysis: {e}")
+            return {
+                "risk_score": 50,
+                "message": "Error during behavior analysis.",
+                "details": str(e)
+            }
+
+    # ------------------- FEEDBACK & RETRAINING -------------------
+    def add_feedback(self, feedback):
+        """
+        Add new feedback to dataset.
+        Example feedback = {"amount": 1200, "hour": 14, "frequency": 3, "day_of_week": 2, "delta_hours": 5}
+        """
+        df = pd.DataFrame([feedback])
+        df.to_csv(self.dataset_path, mode='a', header=not os.path.exists(self.dataset_path), index=False)
+        print(f"🧾 Feedback added: {feedback}")
+
+        count = self._increment_feedback_count()
+        if count >= self.threshold:
+            print("⚡ Feedback threshold reached — retraining model...")
+            self._retrain_from_csv()
+            self._reset_feedback_count()
+
+    def _increment_feedback_count(self):
+        count = 0
+        if os.path.exists(self.feedback_counter_path):
+            try:
+                with open(self.feedback_counter_path, 'r') as f:
+                    count = int(f.read().strip())
+            except:
+                count = 0
+        count += 1
+        with open(self.feedback_counter_path, 'w') as f:
+            f.write(str(count))
+        return count
+
+    def _reset_feedback_count(self):
+        with open(self.feedback_counter_path, 'w') as f:
+            f.write("0")
+        print("🔄 Feedback counter reset.")
+
+    def _retrain_from_csv(self):
+        """Retrains IsolationForest using local dataset CSV."""
+        if not os.path.exists(self.dataset_path):
+            print("⚠️ No dataset found for retraining.")
+            return
+
+        df = pd.read_csv(self.dataset_path)
+        features = ["amount", "hour", "frequency", "day_of_week", "delta_hours"]
+
+        if not all(col in df.columns for col in features):
+            print("❌ Dataset missing columns for retraining.")
+            return
+
+        X = df[features].values
+        model = IsolationForest(n_estimators=100, contamination=0.07, random_state=42)
+        model.fit(X)
+
+        joblib.dump(model, self.model_path)
+        self.model = model
+        print(f"✅ Retrained model on {len(df)} samples → saved to {self.model_path}")
+
+    # ------------------- UTILITIES -------------------
+    def _get_user_pattern(self, user_id):
+        db = get_db()
+        return db.user_behavior.find_one({"user_id": user_id}) or None
+
     def _extract_features(self, transaction, user_pattern):
-        """
-        Extract features for IsolationForest model
-        Features must match training: ["amount", "hour", "frequency", "day_of_week", "delta_hours"]
-        
-        Returns:
-            numpy array: [amount, hour, frequency, day_of_week, delta_hours]
-        """
+        """Extracts consistent 5 features."""
         amount = float(transaction.get('amount', 0))
         time_str = transaction.get('time', '')
-        
-        # Extract hour (0-23)
-        hour = self._extract_hour(time_str) or 12  # Default to noon
-        
-        # Frequency: transactions per day (estimate from transaction_count)
-        # For simplicity, use transaction_count / 30 as frequency (assuming ~1 month of history)
+        hour = self._extract_hour(time_str) or 12
+
+        # Frequency & delta logic
         transaction_count = user_pattern.get('transaction_count', 0) if user_pattern else 0
+<<<<<<< HEAD
         frequency = min(transaction_count / 30.0, 5.0) if transaction_count > 0 else 0.0  # Cap at 5
         
         # Day of week (0=Monday, 6=Sunday)
@@ -186,91 +177,36 @@ class BehaviorAgent:
         day_of_week = now.weekday()
         
         # Delta hours: hours since last transaction
+=======
+        frequency = min(transaction_count / 30.0, 5.0) if transaction_count > 0 else 0.0
+        day_of_week = datetime.utcnow().weekday()
+
+>>>>>>> 8b231281e303f9616859ac75b7ed2821ac187f70
         if user_pattern and user_pattern.get('last_transaction_at'):
             try:
-                # Handle both datetime objects and strings
-                last_tx = user_pattern.get('last_transaction_at')
-                if isinstance(last_tx, str):
-                    # Try parsing ISO format or common string formats
-                    try:
-                        last_tx = datetime.fromisoformat(last_tx.replace('Z', '+00:00'))
-                    except:
-                        # Try other formats
-                        from dateutil.parser import parse
-                        last_tx = parse(last_tx)
-                elif isinstance(last_tx, datetime):
-                    pass  # Already datetime
-                else:
-                    last_tx = None
-                
-                if last_tx:
-                    delta = (now - last_tx).total_seconds() / 3600  # Convert to hours
-                    delta_hours = min(delta, 168.0)  # Cap at 1 week (168 hours)
-                else:
-                    delta_hours = 24.0  # Default: 1 day ago
+                from dateutil.parser import parse
+                last_tx = parse(user_pattern['last_transaction_at']) if isinstance(user_pattern['last_transaction_at'], str) else user_pattern['last_transaction_at']
+                delta_hours = min((datetime.utcnow() - last_tx).total_seconds() / 3600, 168.0)
             except:
-                delta_hours = 24.0  # Default: 1 day ago
+                delta_hours = 24.0
         else:
-            # No previous transaction
-            delta_hours = 168.0  # Default: 1 week (first transaction)
-        
-        # Return features in same order as training
-        return np.array([
-            amount,
-            float(hour),
-            frequency,
-            float(day_of_week),
-            delta_hours
-        ])
-    
-    def _rule_based_analysis(self, transaction, user_pattern):
-        """Fallback rule-based behavior analysis"""
-        risk = 20  # Base risk
-        
-        amount = float(transaction.get('amount', 0))
-        time_str = transaction.get('time', '')
-        
-        if user_pattern:
-            avg_amount = user_pattern.get('avg_amount', 0)
-            
-            # Amount anomaly
-            if avg_amount > 0:
-                if amount > avg_amount * 3:
-                    risk += 40
-                elif amount > avg_amount * 2:
-                    risk += 25
-                elif amount > avg_amount * 1.5:
-                    risk += 10
-            
-            # Time anomaly
-            hour = self._extract_hour(time_str)
-            if hour:
-                if hour < 6 or hour >= 23:  # Late night / early morning
-                    risk += 30
-                elif hour < 9:  # Very early morning
-                    risk += 15
-        else:
-            # First transaction - moderate risk
-            risk = 30
-        
-        return min(risk, 95)
-    
+            delta_hours = 168.0
+
+        return np.array([amount, float(hour), frequency, float(day_of_week), delta_hours])
+
     def _extract_hour(self, time_str):
-        """Extract hour from time string (e.g., '2:05 AM' -> 2)"""
         try:
-            # Handle formats like "2:05 AM", "14:30", etc.
             if 'AM' in time_str.upper() or 'PM' in time_str.upper():
-                time_part = time_str.split()[0]
-                hour = int(time_part.split(':')[0])
+                hour = int(time_str.split(':')[0])
                 if 'PM' in time_str.upper() and hour != 12:
                     hour += 12
                 elif 'AM' in time_str.upper() and hour == 12:
                     hour = 0
                 return hour
-            else:
-                return int(time_str.split(':')[0])
+            return int(time_str.split(':')[0])
         except:
             return None
+<<<<<<< HEAD
     
     def _update_user_pattern(self, user_id, amount, time_str):
         """Update user behavior pattern in database"""
@@ -298,12 +234,46 @@ class BehaviorAgent:
                     }
                 }
             )
+=======
+
+    def _generate_message(self, risk_score, amount, time_str, user_pattern):
+        evidence = []
+        if risk_score >= 70:
+            message = "🚨 Unusual behavior detected!"
+            evidence.append("Model detected strong deviation from usual patterns.")
+        elif risk_score >= 40:
+            message = "⚠️ Somewhat unusual activity."
+            evidence.append("Minor deviation detected.")
+>>>>>>> 8b231281e303f9616859ac75b7ed2821ac187f70
         else:
-            # Create new
-            user_behavior.insert_one({
+            message = "✓ Normal behavior detected."
+            evidence.append("Transaction matches usual behavior.")
+
+        if user_pattern:
+            avg = user_pattern.get('avg_amount', 0)
+            if amount > avg * 2:
+                evidence.append(f"Amount ₹{amount} > 2x your average ₹{avg:.0f}")
+            hour = self._extract_hour(time_str)
+            if hour and (hour < 6 or hour > 23):
+                evidence.append(f"Unusual transaction hour: {time_str}")
+
+        return message, evidence
+
+    def _update_user_pattern(self, user_id, amount, time_str):
+        db = get_db()
+        coll = db.user_behavior
+        now = datetime.utcnow()
+
+        existing = coll.find_one({"user_id": user_id})
+        if existing:
+            new_count = existing.get('transaction_count', 0) + 1
+            old_avg = existing.get('avg_amount', 0)
+            new_avg = ((old_avg * existing.get('transaction_count', 1)) + amount) / new_count
+            coll.update_one({"user_id": user_id}, {"$set": {"avg_amount": new_avg, "transaction_count": new_count, "last_transaction_at": now}})
+        else:
+            coll.insert_one({
                 "user_id": user_id,
                 "avg_amount": amount,
                 "transaction_count": 1,
-                "last_transaction_at": now,
-                "common_times": ""
+                "last_transaction_at": now
             })
