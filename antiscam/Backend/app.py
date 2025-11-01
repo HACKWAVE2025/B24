@@ -8,9 +8,14 @@ from agents.behavior_agent import BehaviorAgent
 from agents.biometric_agent import BiometricAgent
 from database.db import get_db, connect
 from utils.score_aggregator import aggregate_scores
+from routes.auth import auth_bp
+from utils.auth import token_required
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend
+
+# Register blueprints
+app.register_blueprint(auth_bp)
 
 # Initialize MongoDB connection
 connect()
@@ -23,6 +28,7 @@ biometric_agent = BiometricAgent()
 
 
 @app.route('/api/analyze', methods=['POST'])
+@token_required
 def analyze_transaction():
     """
     Main endpoint: Analyzes transaction through all 4 agents
@@ -42,10 +48,13 @@ def analyze_transaction():
         data = request.get_json()
         
         # Validate required fields
-        required_fields = ['receiver', 'amount', 'user_id']
+        required_fields = ['receiver', 'amount']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        # Get user_id from token (from token_required decorator)
+        user_id = request.current_user['user_id']
         
         # Extract transaction details
         transaction = {
@@ -53,7 +62,7 @@ def analyze_transaction():
             'amount': float(data.get('amount', 0)),
             'reason': data.get('reason', data.get('message', '')),  # Accept 'message' or 'reason'
             'time': data.get('time', ''),
-            'user_id': data.get('user_id', ''),
+            'user_id': user_id,
             'typing_speed': data.get('typing_speed', None),
             'hesitation_count': data.get('hesitation_count', None)
         }
@@ -124,6 +133,7 @@ def analyze_transaction():
 
 
 @app.route('/api/report', methods=['POST'])
+@token_required
 def report_scam():
     """
     Report a scam ID to improve network agent
@@ -131,7 +141,6 @@ def report_scam():
     Request body:
     {
         "receiver": "scammer@upi",
-        "user_id": "U123",
         "reason": "Fake loan scam"
     }
     """
@@ -139,7 +148,7 @@ def report_scam():
         data = request.get_json()
         
         receiver = data.get('receiver')
-        user_id = data.get('user_id')
+        user_id = request.current_user['user_id']
         reason = data.get('reason', 'Reported scam')
         
         if not receiver:
@@ -196,12 +205,15 @@ def report_scam():
         return jsonify({'error': str(e)}), 500
 
 
-@app.route('/api/history/<user_id>', methods=['GET'])
-def get_history(user_id):
+@app.route('/api/history', methods=['GET'])
+@token_required
+def get_history():
     """
-    Get transaction history for a user (optional)
+    Get transaction history for the authenticated user
     """
     try:
+        user_id = request.current_user['user_id']
+        
         db = get_db()
         transactions = db.transactions
         
@@ -228,6 +240,7 @@ def get_history(user_id):
 
 
 @app.route('/api/complete-transaction', methods=['POST'])
+@token_required
 def complete_transaction():
     """
     Complete a transaction (save to history after PIN confirmation)
@@ -237,7 +250,6 @@ def complete_transaction():
         "receiver": "example@upi",
         "amount": 1000,
         "reason": "Payment",
-        "user_id": "U123",
         "time": "2:05 AM",
         "risk_score": 85.5
     }
@@ -247,9 +259,9 @@ def complete_transaction():
         
         receiver = data.get('receiver')
         amount = data.get('amount')
-        user_id = data.get('user_id')
+        user_id = request.current_user['user_id']
         
-        if not receiver or not amount or not user_id:
+        if not receiver or not amount:
             return jsonify({'error': 'Missing required fields'}), 400
         
         # Save to MongoDB
@@ -279,6 +291,7 @@ def complete_transaction():
 
 
 @app.route('/api/feedback', methods=['POST'])
+@token_required
 def submit_feedback():
     """
     Submit feedback after transaction completion
@@ -287,7 +300,6 @@ def submit_feedback():
     {
         "transaction_id": "tx123",
         "receiver": "example@upi",
-        "user_id": "U123",
         "was_scam": true,  // true if it was actually a scam, false otherwise
         "comment": "Optional comment"
     }
@@ -296,7 +308,7 @@ def submit_feedback():
         data = request.get_json()
         
         receiver = data.get('receiver')
-        user_id = data.get('user_id')
+        user_id = request.current_user['user_id']
         was_scam = data.get('was_scam')
         transaction_id = data.get('transaction_id')
         

@@ -54,6 +54,12 @@ def init_collections():
     if _db is None:
         connect()
     
+    # Users Collection
+    users = _db.users
+    users.create_index("email", unique=True)
+    users.create_index("google_id")
+    users.create_index("created_at")
+    
     # Scam Reports Collection
     scam_reports = _db.scam_reports
     scam_reports.create_index("receiver_id", unique=True)

@@ -7,26 +7,50 @@ import DashboardPage from "./pages/DashboardPage";
 import DemoPage from "./pages/DemoPage";
 import AIAnalysisPage from "./pages/AIAnalysisPage";
 import { Toaster } from "./components/ui/sonner";
+import { getToken, verifyToken, removeToken, removeUser } from "./services/auth";
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    const auth = localStorage.getItem('figment_auth');
-    if (auth) {
-      setIsAuthenticated(true);
-    }
+    const checkAuth = async () => {
+      const token = getToken();
+      if (token) {
+        // Verify token with backend
+        const isValid = await verifyToken();
+        if (isValid) {
+          setIsAuthenticated(true);
+        } else {
+          // Token is invalid, clear it
+          removeToken();
+          removeUser();
+        }
+      }
+      setIsChecking(false);
+    };
+    
+    checkAuth();
   }, []);
 
   const handleLogin = () => {
-    localStorage.setItem('figment_auth', 'true');
     setIsAuthenticated(true);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('figment_auth');
+    removeToken();
+    removeUser();
     setIsAuthenticated(false);
   };
+
+  // Show loading state while checking authentication
+  if (isChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="App">

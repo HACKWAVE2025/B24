@@ -9,6 +9,37 @@ const api = axios.create({
   },
 });
 
+// Add token to requests
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('figment_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Handle token expiration
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem('figment_token');
+      localStorage.removeItem('figment_user');
+      // Redirect to login page if not already there
+      if (window.location.pathname !== '/auth' && window.location.pathname !== '/') {
+        window.location.href = '/auth';
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 // Analyze transaction through all agents
 export const analyzeTransaction = async (transactionData) => {
   try {
@@ -26,7 +57,6 @@ export const analyzeTransaction = async (transactionData) => {
       amount: parseFloat(transactionData.amount),
       reason: transactionData.message || transactionData.reason || '',
       time: transactionData.time || timeStr,
-      user_id: transactionData.user_id || `user_${Date.now()}`, // Generate user ID if not provided
       typing_speed: transactionData.typing_speed || null,
       hesitation_count: transactionData.hesitation_count || null
     };
@@ -44,7 +74,6 @@ export const reportScam = async (reportData) => {
   try {
     const payload = {
       receiver: reportData.receiver || reportData.upiId,
-      user_id: reportData.user_id || `user_${Date.now()}`,
       reason: reportData.reason || 'Reported scam'
     };
 
@@ -57,9 +86,9 @@ export const reportScam = async (reportData) => {
 };
 
 // Get transaction history
-export const getTransactionHistory = async (userId) => {
+export const getTransactionHistory = async () => {
   try {
-    const response = await api.get(`/api/history/${userId}`);
+    const response = await api.get('/api/history');
     return response.data;
   } catch (error) {
     console.error('Error fetching history:', error);
@@ -70,7 +99,9 @@ export const getTransactionHistory = async (userId) => {
 // Complete transaction (after PIN confirmation)
 export const completeTransaction = async (transactionData) => {
   try {
-    const response = await api.post('/api/complete-transaction', transactionData);
+    // Remove user_id as it comes from token
+    const { user_id, ...payload } = transactionData;
+    const response = await api.post('/api/complete-transaction', payload);
     return response.data;
   } catch (error) {
     console.error('Error completing transaction:', error);
@@ -81,7 +112,9 @@ export const completeTransaction = async (transactionData) => {
 // Submit feedback after transaction
 export const submitFeedback = async (feedbackData) => {
   try {
-    const response = await api.post('/api/feedback', feedbackData);
+    // Remove user_id as it comes from token
+    const { user_id, ...payload } = feedbackData;
+    const response = await api.post('/api/feedback', payload);
     return response.data;
   } catch (error) {
     console.error('Error submitting feedback:', error);
