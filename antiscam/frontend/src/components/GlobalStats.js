@@ -30,10 +30,10 @@ const GlobalStats = ({ darkMode }) => {
         };
 
         fetchAnalytics();
-        
+
         // Refresh analytics every 5 minutes (300 seconds)
         const interval = setInterval(fetchAnalytics, 300000);
-        
+
         return () => clearInterval(interval);
     }, []);
 

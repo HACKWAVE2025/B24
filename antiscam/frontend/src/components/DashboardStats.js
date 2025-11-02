@@ -20,7 +20,7 @@ const DashboardStats = ({ userId, darkMode }) => {
     useEffect(() => {
         const fetchAnalytics = async () => {
             if (!userId) return;
-            
+
             try {
                 setLoading(true);
                 const data = await getUserAnalytics();
@@ -35,10 +35,10 @@ const DashboardStats = ({ userId, darkMode }) => {
         };
 
         fetchAnalytics();
-        
+
         // Refresh analytics every 5 minutes (300 seconds)
         const interval = setInterval(fetchAnalytics, 300000);
-        
+
         return () => clearInterval(interval);
     }, [userId]);
 

@@ -28,7 +28,7 @@ const DashboardPage = ({ onLogout, darkMode, toggleDarkMode }) => {
         const userAnalytics = await getUserAnalytics();
         // Get global analytics for additional data
         const globalAnalytics = await getGlobalAnalytics();
-        
+
         setAnalytics({
           total_transactions: userAnalytics.total_transactions,
           scams_prevented: userAnalytics.scams_prevented,
@@ -45,10 +45,10 @@ const DashboardPage = ({ onLogout, darkMode, toggleDarkMode }) => {
     };
 
     fetchAnalytics();
-    
+
     // Refresh analytics every 5 minutes (300 seconds)
     const interval = setInterval(fetchAnalytics, 300000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
