@@ -12,6 +12,13 @@ FIGMENT uses **4 specialized AI agents** to analyze each transaction from differ
 
 Each agent provides a **risk score with detailed explanations**, and the system combines these scores to give users a clear, actionable warning before completing potentially fraudulent transactions.
 
+## ✨ Recent Enhancements
+
+- **Gemini AI Integration** - Generates human-readable explanations for why transactions are flagged as scams
+- **Real-time Dashboard** - Shows analytics with data from MongoDB, refreshes every 5 minutes
+- **WebSocket Updates** - Real-time transaction analysis results
+- **Improved Dark Mode** - Consistent styling across all components
+
 ---
 
 ## 🏗️ Architecture
@@ -33,53 +40,11 @@ Each agent provides a **risk score with detailed explanations**, and the system 
 - MongoDB for data storage
 - scikit-learn for ML models
 - joblib for model loading
+- Google Generative AI for Gemini integration
 
 **ML Models:**
 - Pattern Agent: sklearn Pipeline (TF-IDF + Logistic Regression)
 - Behavior Agent: sklearn IsolationForest (Anomaly Detection)
-
----
-
-## 📁 Project Structure
-
-```
-antiscam/
-├── Frontend/                 # React frontend application
-│   ├── src/
-│   │   ├── components/      # UI components
-│   │   │   ├── ui/          # shadcn/ui components
-│   │   │   ├── AgentCard.js
-│   │   │   ├── ResultsModal.js
-│   │   │   ├── PINEntry.js
-│   │   │   ├── FeedbackModal.js
-│   │   │   └── ...
-│   │   ├── pages/           # Page components
-│   │   │   ├── DemoPage.js  # Main transaction demo
-│   │   │   ├── DashboardPage.js
-│   │   │   └── ...
-│   │   ├── services/        # API service layer
-│   │   │   └── api.js       # Centralized API calls
-│   │   └── ...
-│   └── package.json
-│
-├── Backend/                  # Flask backend API
-│   ├── agents/              # AI agent implementations
-│   │   ├── pattern_agent.py      # Text pattern detection
-│   │   ├── network_agent.py       # Community reports check
-│   │   ├── behavior_agent.py      # Anomaly detection
-│   │   └── biometric_agent.py     # Typing pattern analysis
-│   ├── database/
-│   │   └── db.py            # MongoDB connection
-│   ├── models/              # Trained ML models
-│   │   ├── pattern_agent_tiny.pkl
-│   │   └── behavior_iforest.pkl
-│   ├── utils/
-│   │   └── score_aggregator.py   # Combines agent scores
-│   ├── app.py               # Flask application & API routes
-│   └── requirements.txt
-│
-└── README.md                # This file
-```
 
 ---
 
@@ -100,9 +65,10 @@ cd Backend
 pip install -r requirements.txt
 
 # Create .env file
-# Add your MongoDB connection string:
+# Add your MongoDB connection string and Gemini API key:
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/?appName=Cluster0
 DB_NAME=AntiScam
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 **Place ML Models:**
@@ -196,15 +162,26 @@ Frontend runs on `http://localhost:3000`
 
 ---
 
-## 📊 Score Aggregation
+## 🧠 Gemini AI Integration
 
-The system combines all 4 agent scores:
-- **Weighted Average:** Different weights for each agent
-- **Overall Risk Score:** 0-100%
-- **Risk Levels:**
-  - 70%+ → High Risk (Red warning)
-  - 40-69% → Medium Risk (Orange warning)
-  - <40% → Low Risk (Green)
+**Purpose:** Generates 2-3 human-readable summaries explaining why a transaction was flagged as a scam
+
+**How it works:**
+- Receives transaction details and individual agent scores
+- Creates contextual prompts for Gemini
+- Returns simple, actionable explanations for users
+- Falls back gracefully if API key is not configured
+
+---
+
+## 📊 Real-time Dashboard
+
+**Features:**
+- Real analytics data from MongoDB
+- Auto-refresh every 5 minutes
+- Transaction history tracking
+- Scam prevention metrics
+- Risk distribution visualization
 
 ---
 
@@ -228,7 +205,6 @@ Save completed transaction to history
 ### `POST /api/feedback`
 Submit feedback after transaction
 
-
 **Note:** If `was_scam: true`, increments scam count in network database
 
 ---
@@ -238,10 +214,18 @@ Get transaction history for a user
 
 ---
 
-### `GET /health`
-Health check endpoint
+### `GET /api/user-analytics`
+Get user analytics data
 
 ---
+
+### `GET /api/global-analytics`
+Get global analytics data
+
+---
+
+### `GET /health`
+Health check endpoint
 
 ---
 
@@ -259,17 +243,22 @@ Health check endpoint
    - Behavior Agent checks user patterns
    - Biometric Agent analyzes input behavior
 
-3. **Results displayed:**
+3. **Gemini AI generates explanation:**
+   - Human-readable summary of risk factors
+   - Simple language for non-technical users
+
+4. **Results displayed:**
    - Overall risk score
    - Individual agent scores
    - Detailed explanations
    - Evidence for each agent
+   - AI-generated summary
 
-4. **User decides:**
+5. **User decides:**
    - **Cancel** → Transaction cancelled
    - **Proceed Anyway** → Warning dialog → PIN entry → Transaction completes
 
-5. **After completion (if risk ≥ 40%):**
+6. **After completion (if risk ≥ 40%):**
    - Feedback modal appears
    - User confirms if it was actually a scam
    - If yes → Scam count incremented in database
@@ -284,6 +273,7 @@ Create `Backend/.env`:
 ```env
 MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/?appName=Cluster0
 DB_NAME=figment
+GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 ### Frontend Environment Variables
@@ -299,12 +289,14 @@ REACT_APP_API_URL=http://localhost:5000
 
 ✅ **Multi-Agent AI System** - 4 specialized agents analyzing different aspects
 ✅ **Explainable AI** - Each agent provides detailed reasoning
+✅ **Gemini AI Explanations** - Human-readable fraud summaries
 ✅ **Real-Time Analysis** - Instant risk assessment before payment
 ✅ **Community Intelligence** - Crowd-sourced scam database
 ✅ **Behavior Learning** - Adapts to user's normal patterns
 ✅ **Feedback Loop** - Users help improve the system
 ✅ **PIN Confirmation** - Extra step for high-risk transactions
 ✅ **Transaction History** - Track all analyzed transactions
+✅ **Real-time Dashboard** - Live analytics with MongoDB data
 
 ---
 
@@ -352,6 +344,7 @@ Built for hackathon demonstration purposes.
 - **Demo Purpose:** This is a prototype for hackathon demonstration
 - **ML Models:** Requires trained models placed in `Backend/models/`
 - **MongoDB:** Requires connection string in `.env` file
+- **Gemini AI:** Requires API key for fraud explanations
 - **Fallback Systems:** All agents have rule-based fallbacks if models unavailable
 
 ---
@@ -366,4 +359,3 @@ Built for hackathon demonstration purposes.
 ---
 
 **Ready to demo!** 🚀
-
