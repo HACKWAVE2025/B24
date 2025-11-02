@@ -145,18 +145,66 @@ def get_current_user_id() -> Optional[str]:
 # -------------------------------------------------------------
 # Helper: Save feedback locally + trigger retraining
 # -------------------------------------------------------------
+import platform  # To detect the operating system
+
+# Cross-platform file locking
+try:
+    if platform.system() == 'Windows':
+        import msvcrt
+        def _lock_file(file_handle):
+            while True:
+                try:
+                    msvcrt.locking(file_handle.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except IOError:
+                    import time
+                    time.sleep(0.1)
+        
+        def _unlock_file(file_handle):
+            msvcrt.locking(file_handle.fileno(), msvcrt.LK_UNLCK, 1)
+    else:
+        import fcntl
+        def _lock_file(file_handle):
+            fcntl.flock(file_handle, fcntl.LOCK_EX)
+        
+        def _unlock_file(file_handle):
+            fcntl.flock(file_handle, fcntl.LOCK_UN)
+except ImportError:
+    # Fallback if locking is not available
+    def _lock_file(file_handle):
+        pass
+    
+    def _unlock_file(file_handle):
+        pass
+
 def save_feedback_and_check_retrain(feedback):
     feedback_path = os.path.join(os.path.dirname(__file__), 'data', 'behavior_feedback.csv')
     os.makedirs(os.path.dirname(feedback_path), exist_ok=True)
 
+    # Use file locking to prevent race conditions
     df = pd.DataFrame([feedback])
-
-    if os.path.exists(feedback_path) and os.path.getsize(feedback_path) > 0:
-        df.to_csv(feedback_path, mode='a', header=False, index=False)
-    else:
+    
+    # Create file if it doesn't exist with header
+    if not os.path.exists(feedback_path):
         df.to_csv(feedback_path, index=False)
+    else:
+        # Append with file locking to prevent corruption
+        with open(feedback_path, 'a', newline='', encoding='utf-8') as f:
+            _lock_file(f)
+            try:
+                df.to_csv(f, header=False, index=False)
+            finally:
+                _unlock_file(f)
 
-    feedback_count = len(pd.read_csv(feedback_path))
+    # Read with error handling to prevent crashes on corrupted files
+    try:
+        feedback_df = pd.read_csv(feedback_path)
+        feedback_count = len(feedback_df)
+    except pd.errors.ParserError as e:
+        print(f"⚠️ CSV parsing error in behavior feedback: {e}")
+        # Attempt to fix corrupted file
+        feedback_count = _fix_corrupted_csv(feedback_path)
+    
     print(f"📥 Behavior feedback count: {feedback_count}")
 
     if feedback_count >= 10:
@@ -172,19 +220,76 @@ def save_pattern_feedback_and_retrain(feedback):
     feedback_path = os.path.join(os.path.dirname(__file__), 'data', 'pattern_feedback.csv')
     os.makedirs(os.path.dirname(feedback_path), exist_ok=True)
 
+    # Use file locking to prevent race conditions
     df = pd.DataFrame([feedback])
-
-    if os.path.exists(feedback_path) and os.path.getsize(feedback_path) > 0:
-        df.to_csv(feedback_path, mode='a', header=False, index=False)
-    else:
+    
+    # Create file if it doesn't exist with header
+    if not os.path.exists(feedback_path):
         df.to_csv(feedback_path, index=False)
+    else:
+        # Append with file locking to prevent corruption
+        with open(feedback_path, 'a', newline='', encoding='utf-8') as f:
+            _lock_file(f)
+            try:
+                df.to_csv(f, header=False, index=False)
+            finally:
+                _unlock_file(f)
 
-    feedback_count = len(pd.read_csv(feedback_path))
+    # Read with error handling to prevent crashes on corrupted files
+    try:
+        feedback_df = pd.read_csv(feedback_path)
+        feedback_count = len(feedback_df)
+    except pd.errors.ParserError as e:
+        print(f"⚠️ CSV parsing error in pattern feedback: {e}")
+        # Attempt to fix corrupted file
+        feedback_count = _fix_corrupted_csv(feedback_path)
+    
     print(f"📥 Pattern feedback count: {feedback_count}")
 
     if feedback_count >= 10:
         print("🚀 Threshold reached — retraining pattern model...")
         retrain_pattern_model()
+
+
+def _fix_corrupted_csv(file_path):
+    """
+    Attempt to fix corrupted CSV files by reading line by line
+    and writing valid lines to a new file.
+    """
+    try:
+        backup_path = file_path + ".backup"
+        # Create backup
+        if os.path.exists(file_path):
+            import shutil
+            shutil.copy2(file_path, backup_path)
+        
+        valid_lines = []
+        expected_columns = 5  # user_id,receiver,was_scam,comment,timestamp
+        
+        with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+            
+        for i, line in enumerate(lines):
+            # Skip empty lines
+            if not line.strip():
+                continue
+                
+            # Count commas to check if line has expected number of fields
+            comma_count = line.count(',')
+            if comma_count == expected_columns - 1:  # Expected fields - 1 (since commas separate fields)
+                valid_lines.append(line)
+            else:
+                print(f"⚠️ Skipping corrupted line {i+1}: {line[:50]}...")
+        
+        # Write valid lines back to file
+        with open(file_path, 'w', newline='', encoding='utf-8') as f:
+            f.writelines(valid_lines)
+            
+        print(f"✅ Fixed CSV file: {len(lines)} → {len(valid_lines)} valid lines")
+        return len(valid_lines) - 1 if len(valid_lines) > 0 else 0  # Subtract 1 for header
+    except Exception as e:
+        print(f"❌ Error fixing CSV file: {e}")
+        return 0
 
 # Initialize MongoDB connection and agents on startup
 with app.app_context():
