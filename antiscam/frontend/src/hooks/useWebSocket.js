@@ -5,6 +5,8 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export const useWebSocket = () => {
   const [alerts, setAlerts] = useState([]);
+  const [analysisResults, setAnalysisResults] = useState([]);
+  const [recentTransactions, setRecentTransactions] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
 
@@ -50,6 +52,27 @@ export const useWebSocket = () => {
       setAlerts((prev) => [...prev, alert]);
     });
 
+    // Receive real-time analysis results
+    socket.on('analysis_result', (result) => {
+      console.log('🔬 New analysis result received:', result);
+      setAnalysisResults((prev) => [...prev, result]);
+    });
+
+    // Receive recent transactions
+    socket.on('recent_transactions', (data) => {
+      console.log('📋 Recent transactions received:', data);
+      setRecentTransactions(data.transactions);
+    });
+
+    // Room management
+    socket.on('room_joined', (data) => {
+      console.log('🚪 Joined room:', data);
+    });
+
+    socket.on('room_left', (data) => {
+      console.log('🚪 Left room:', data);
+    });
+
     // Cleanup on unmount
     return () => {
       if (socket) {
@@ -62,6 +85,37 @@ export const useWebSocket = () => {
     setAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
   };
 
-  return { alerts, isConnected, dismissAlert };
-};
+  const clearAnalysisResults = () => {
+    setAnalysisResults([]);
+  };
 
+  const joinUserRoom = (userId) => {
+    if (socketRef.current) {
+      socketRef.current.emit('join_user_room', { user_id: userId });
+    }
+  };
+
+  const leaveUserRoom = (userId) => {
+    if (socketRef.current) {
+      socketRef.current.emit('leave_user_room', { user_id: userId });
+    }
+  };
+
+  const requestRecentTransactions = (userId, limit = 10) => {
+    if (socketRef.current) {
+      socketRef.current.emit('request_recent_transactions', { user_id: userId, limit });
+    }
+  };
+
+  return {
+    alerts,
+    isConnected,
+    dismissAlert,
+    analysisResults,
+    clearAnalysisResults,
+    recentTransactions,
+    joinUserRoom,
+    leaveUserRoom,
+    requestRecentTransactions
+  };
+};

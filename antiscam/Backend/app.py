@@ -1,12 +1,16 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import warnings
 # Suppress eventlet warnings
 warnings.filterwarnings('ignore', category=UserWarning)
 import os
 import pandas as pd
 from datetime import datetime, timezone
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import agents
 from agents.pattern_agent import PatternAgent
@@ -25,6 +29,8 @@ from routes.auth import auth_bp
 from utils.auth import token_required
 from typing import Dict, Any, Optional
 from services.alert_service import AlertService
+from services.gemini_service import gemini_service
+from services.transaction_service import init_transaction_service, get_transaction_service
 
 # -------------------------------------------------------------
 # Flask setup
@@ -44,6 +50,9 @@ socketio = SocketIO(
 
 # Initialize alert service
 alert_service = AlertService(socketio)
+
+# Initialize transaction service
+transaction_service = init_transaction_service(socketio)
 
 # Register blueprints
 app.register_blueprint(auth_bp)
@@ -67,6 +76,36 @@ def handle_request_alerts():
     emit('alerts_enabled', {'status': 'enabled'})
     # Send first alert immediately when client requests (if not sent yet)
     alert_service.send_first_alert_if_needed()
+
+@socketio.on('join_user_room')
+def handle_join_user_room(data):
+    """Handle user joining their private room for personalized updates"""
+    user_id = data.get('user_id')
+    if user_id:
+        room = f"user_{user_id}"
+        join_room(room)
+        print(f'User {user_id} joined room {room}')
+        emit('room_joined', {'room': room, 'status': 'success'})
+
+@socketio.on('leave_user_room')
+def handle_leave_user_room(data):
+    """Handle user leaving their private room"""
+    user_id = data.get('user_id')
+    if user_id:
+        room = f"user_{user_id}"
+        leave_room(room)
+        print(f'User {user_id} left room {room}')
+        emit('room_left', {'room': room, 'status': 'success'})
+
+@socketio.on('request_recent_transactions')
+def handle_request_recent_transactions(data):
+    """Handle client request for recent transactions"""
+    user_id = data.get('user_id')
+    limit = data.get('limit', 10)
+    
+    if user_id and transaction_service:
+        transactions = transaction_service.get_recent_transactions(user_id, limit)
+        emit('recent_transactions', {'transactions': transactions})
 
 # Initialize MongoDB connection
 connect()
@@ -204,48 +243,73 @@ def analyze_transaction():
         
         overall_risk = aggregate_scores(agents)
 
+        # Prepare agent results for response and AI explanation
+        agent_results = [
+            {
+                'name': 'Pattern Agent',
+                'icon': '🕵️',
+                'color': '#00C896',
+                'riskScore': pattern_result.get('risk_score', 0),
+                'message': pattern_result.get('message', ''),
+                'details': pattern_result.get('details', ''),
+                'evidence': pattern_result.get('evidence', [])
+            },
+            {
+                'name': 'Network Agent',
+                'icon': '🕸️',
+                'color': '#0091FF',
+                'riskScore': network_result.get('risk_score', 0),
+                'message': network_result.get('message', ''),
+                'details': network_result.get('details', ''),
+                'evidence': network_result.get('evidence', [])
+            },
+            {
+                'name': 'Behavior Agent',
+                'icon': '🔍',
+                'color': '#A78BFA',
+                'riskScore': behavior_result.get('risk_score', 0),
+                'message': behavior_result.get('message', ''),
+                'details': behavior_result.get('details', ''),
+                'evidence': behavior_result.get('evidence', [])
+            },
+            {
+                'name': 'Biometric Agent',
+                'icon': '🎭',
+                'color': '#F472B6',
+                'riskScore': biometric_result.get('risk_score', 0),
+                'message': biometric_result.get('message', ''),
+                'details': biometric_result.get('details', ''),
+                'evidence': biometric_result.get('evidence', [])
+            }
+        ]
+
+        # Generate AI explanation using Gemini
+        ai_explanation = ""
+        if gemini_service.is_enabled():
+            ai_explanation = gemini_service.generate_fraud_explanation(transaction, agent_results, overall_risk)
+            print(f"AI Explanation generated: {ai_explanation[:100]}...")  # Log first 100 chars
+
         response = {
             'overallRisk': overall_risk,
-            'agents': [
-                {
-                    'name': 'Pattern Agent',
-                    'icon': '🕵️',
-                    'color': '#00C896',
-                    'riskScore': pattern_result.get('risk_score', 0),
-                    'message': pattern_result.get('message', ''),
-                    'details': pattern_result.get('details', ''),
-                    'evidence': pattern_result.get('evidence', [])
-                },
-                {
-                    'name': 'Network Agent',
-                    'icon': '🕸️',
-                    'color': '#0091FF',
-                    'riskScore': network_result.get('risk_score', 0),
-                    'message': network_result.get('message', ''),
-                    'details': network_result.get('details', ''),
-                    'evidence': network_result.get('evidence', [])
-                },
-                {
-                    'name': 'Behavior Agent',
-                    'icon': '🔍',
-                    'color': '#A78BFA',
-                    'riskScore': behavior_result.get('risk_score', 0),
-                    'message': behavior_result.get('message', ''),
-                    'details': behavior_result.get('details', ''),
-                    'evidence': behavior_result.get('evidence', [])
-                },
-                {
-                    'name': 'Biometric Agent',
-                    'icon': '🎭',
-                    'color': '#F472B6',
-                    'riskScore': biometric_result.get('risk_score', 0),
-                    'message': biometric_result.get('message', ''),
-                    'details': biometric_result.get('details', ''),
-                    'evidence': biometric_result.get('evidence', [])
-                }
-            ]
+            'aiExplanation': ai_explanation,
+            'agents': agent_results
         }
 
+        print(f"Returning response with AI explanation length: {len(ai_explanation)}")
+        
+        # Emit real-time analysis result to the user
+        if transaction_service:
+            # Add transaction details to the analysis result
+            analysis_result = response.copy()
+            analysis_result['transaction'] = {
+                'receiver': transaction.get('receiver', ''),
+                'amount': transaction.get('amount', 0),
+                'reason': transaction.get('reason', ''),
+                'time': transaction.get('time', ''),
+                'user_id': user_id
+            }
+            transaction_service.emit_analysis_result(analysis_result, user_id)
+        
         return jsonify(response), 200
         
     except ValueError as e:
@@ -347,6 +411,7 @@ def get_history():
                 'receiver': tx.get('receiver_id', ''),
                 'amount': tx.get('amount', 0),
                 'reason': tx.get('reason', ''),
+                'risk_score': tx.get('risk_score', 0),
                 'created_at': formatted_date
             })
 
@@ -456,6 +521,92 @@ def submit_feedback():
 
     except Exception as e:
         print(f"Error in submit_feedback: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/transaction-history', methods=['GET'])
+@token_required
+def get_transaction_history():
+    """Get transaction history for the current user"""
+    try:
+        # Get user_id from token (from token_required decorator)
+        user_id = get_current_user_id()
+        if not user_id:
+            return jsonify({'error': 'User not authenticated'}), 401
+        
+        # Get limit parameter (default to 20)
+        limit = request.args.get('limit', 20, type=int)
+        
+        db = get_db()
+        if db is None:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        transactions = db.transactions
+        tx_list = list(transactions.find({"user_id": user_id})
+                      .sort("created_at", -1)
+                      .limit(limit))
+
+        history = []
+        for tx in tx_list:
+            # Handle datetime conversion safely
+            created_at = tx.get('created_at')
+            if created_at and hasattr(created_at, 'isoformat'):
+                formatted_date = created_at.isoformat()
+            else:
+                formatted_date = str(created_at) if created_at else ''
+                
+            history.append({
+                'id': str(tx.get('_id', '')),
+                'receiver': tx.get('receiver_id', ''),
+                'amount': tx.get('amount', 0),
+                'reason': tx.get('reason', ''),
+                'risk_score': tx.get('risk_score', 0),
+                'created_at': formatted_date
+            })
+
+        return jsonify({'transactions': history}), 200
+
+    except Exception as e:
+        print(f"Error in get_transaction_history: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/user-analytics', methods=['GET'])
+@token_required
+def get_user_analytics():
+    """Get analytics data for the current user"""
+    try:
+        # Get user_id from token (from token_required decorator)
+        user_id = get_current_user_id()
+        if not user_id:
+            return jsonify({'error': 'User not authenticated'}), 401
+        
+        # Get transaction service
+        if transaction_service is None:
+            return jsonify({'error': 'Transaction service not initialized'}), 500
+            
+        # Get user analytics
+        analytics = transaction_service.get_user_analytics(user_id)
+        
+        return jsonify(analytics), 200
+
+    except Exception as e:
+        print(f"Error in get_user_analytics: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@app.route('/api/global-analytics', methods=['GET'])
+def get_global_analytics():
+    """Get global analytics data"""
+    try:
+        # Get transaction service
+        if transaction_service is None:
+            return jsonify({'error': 'Transaction service not initialized'}), 500
+            
+        # Get global analytics
+        analytics = transaction_service.get_global_analytics()
+        
+        return jsonify(analytics), 200
+
+    except Exception as e:
+        print(f"Error in get_global_analytics: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/health', methods=['GET'])

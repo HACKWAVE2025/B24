@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from './ui/dial
 import { Button } from './ui/button';
 import AgentCard from './AgentCard';
 import RiskMeter from './RiskMeter';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Brain } from 'lucide-react';
 
 const ResultsModal = ({ isOpen, results, onCancel, onProceed, onReport, onClose, darkMode }) => {
   if (!results) return null;
@@ -49,6 +49,24 @@ const ResultsModal = ({ isOpen, results, onCancel, onProceed, onReport, onClose,
           >
             <RiskMeter score={results.overallRisk} darkMode={darkMode} />
           </motion.div>
+
+          {/* AI Explanation Section */}
+          {results.aiExplanation && results.aiExplanation.length > 0 && results.aiExplanation !== "Sorry, unable to generate explanation at this time." && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2, duration: 0.4 }}
+              className={darkMode ? "bg-gray-700/50 border border-gray-600 rounded-xl p-4" : "bg-blue-50 border border-blue-200 rounded-xl p-4"}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <Brain className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                <h3 className={darkMode ? "font-semibold text-blue-400" : "font-semibold text-blue-600"}>AI Explanation</h3>
+              </div>
+              <p className={darkMode ? "text-gray-300 text-sm" : "text-gray-700 text-sm"}>
+                {results.aiExplanation}
+              </p>
+            </motion.div>
+          )}
 
           <div>
             <h3 className={darkMode ? "text-xl font-semibold mb-4 text-white" : "text-xl font-semibold mb-4 text-gray-900"}>AI Agents Analysis</h3>

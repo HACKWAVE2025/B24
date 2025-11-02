@@ -7,10 +7,10 @@ import TransactionForm from '../components/TransactionForm';
 import ResultsModal from '../components/ResultsModal';
 import PINEntry from '../components/PINEntry';
 import FeedbackModal from '../components/FeedbackModal';
+import RealTimeAnalysis from '../components/RealTimeAnalysis';
 import { analyzeTransaction as analyzeTransactionAPI, completeTransaction, submitFeedback } from '../services/api';
 import { toast } from 'sonner';
-
-
+import { useWebSocket } from '../hooks/useWebSocket';
 
 const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
   const [searchParams] = useSearchParams();
@@ -23,6 +23,19 @@ const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
   const [showFeedback, setShowFeedback] = useState(false);
   const [currentTransaction, setCurrentTransaction] = useState(null);
   const [completedTxId, setCompletedTxId] = useState(null);
+
+  // WebSocket hook for real-time features
+  const {
+    alerts,
+    isConnected,
+    dismissAlert,
+    analysisResults,
+    clearAnalysisResults,
+    joinUserRoom,
+    leaveUserRoom,
+    requestRecentTransactions
+  } = useWebSocket();
+
   const [userId] = useState(() => {
     // Generate persistent user ID
     let uid = localStorage.getItem('figment_user_id');
@@ -33,9 +46,26 @@ const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
     return uid;
   });
 
+  // Join user room when component mounts
+  useEffect(() => {
+    if (userId) {
+      joinUserRoom(userId);
+
+      // Request recent transactions
+      requestRecentTransactions(userId, 5);
+    }
+
+    return () => {
+      if (userId) {
+        leaveUserRoom(userId);
+      }
+    };
+  }, [userId]);
+
   const handleAnalyze = async (formData) => {
     setIsAnalyzing(true);
     setShowResults(false);
+    clearAnalysisResults(); // Clear previous analysis results
 
     // Add user_id to transaction data
     const transactionData = {
@@ -62,11 +92,13 @@ const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
     setShowResults(false);
     setResults(null);
     setCurrentTransaction(null);
+    clearAnalysisResults(); // Clear real-time analysis results
   };
 
   const handleProceed = () => {
     // Close results modal first, then show warning
     setShowResults(false);
+    clearAnalysisResults(); // Clear real-time analysis results
     // Small delay to allow modal close animation
     setTimeout(() => {
       setShowProceedWarning(true);
@@ -201,6 +233,9 @@ const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
               message: searchParams.get('message') || ''
             }}
           />
+
+          {/* Real-time Analysis Results */}
+          <RealTimeAnalysis analysisResults={analysisResults} darkMode={darkMode} />
 
           {/* Analyzing Animation */}
           <AnimatePresence>

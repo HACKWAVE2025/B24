@@ -45,10 +45,10 @@ export const analyzeTransaction = async (transactionData) => {
   try {
     // Get current time
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('en-US', { 
-      hour: 'numeric', 
+    const timeStr = now.toLocaleTimeString('en-US', {
+      hour: 'numeric',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     });
 
     // Prepare payload matching backend expectations

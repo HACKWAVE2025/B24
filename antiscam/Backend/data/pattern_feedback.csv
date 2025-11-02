@@ -1,3 +1,5 @@
 user_id,receiver,was_scam,comment,timestamp
 69061f210be787180c5b3c90,kycupdate@okaxis,True,Fraud,2025-11-01T22:57:56.377620
 69061d281c86de8b417d5b91,loanhelp@upi,False,,2025-11-02T00:25:17.925085
+69061d281c86de8b417d5b91,loanhelp@upi,True,it was a scam,2025-11-02T00:32:59.544557
+69061d281c86de8b417d5b91,loanhelp@upi,True,kyc scam,2025-11-02T02:07:57.997523

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
@@ -6,38 +6,78 @@ import DashboardCard from '../components/DashboardCard';
 import TransactionHistory from '../components/TransactionHistory';
 import { Shield, AlertTriangle, Users, TrendingUp } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { mockDashboardData } from '../utils/mockData';
+import { getUserAnalytics, getGlobalAnalytics } from '../services/analytics';
 import { Progress } from '../components/ui/progress';
 
 const DashboardPage = ({ onLogout, darkMode, toggleDarkMode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [analytics, setAnalytics] = useState({
+    total_transactions: 0,
+    scams_prevented: 0,
+    feedback_count: 0,
+    accuracy: 94 // This would need to be calculated from real data
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      try {
+        setLoading(true);
+        // Get user-specific analytics
+        const userAnalytics = await getUserAnalytics();
+        // Get global analytics for additional data
+        const globalAnalytics = await getGlobalAnalytics();
+        
+        setAnalytics({
+          total_transactions: userAnalytics.total_transactions,
+          scams_prevented: userAnalytics.scams_prevented,
+          feedback_count: userAnalytics.feedback_count,
+          accuracy: 94 // This would need to be calculated from real data
+        });
+        setError(null);
+      } catch (err) {
+        setError('Failed to load analytics data');
+        console.error('Analytics error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAnalytics();
+    
+    // Refresh analytics every 5 minutes (300 seconds)
+    const interval = setInterval(fetchAnalytics, 300000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   const stats = [
     {
       icon: <Shield className="w-6 h-6" />,
       label: "Total Analyzed",
-      value: mockDashboardData.totalAnalyzed.toLocaleString(),
+      value: analytics.total_transactions.toLocaleString(),
       color: "#00C896",
       trend: "+12%"
     },
     {
       icon: <AlertTriangle className="w-6 h-6" />,
       label: "Scams Prevented",
-      value: mockDashboardData.scamsPrevented.toLocaleString(),
+      value: analytics.scams_prevented.toLocaleString(),
       color: "#FF6B6B",
       trend: "+8%"
     },
     {
       icon: <Users className="w-6 h-6" />,
       label: "User Reports",
-      value: mockDashboardData.userReports.toLocaleString(),
+      value: analytics.feedback_count.toLocaleString(),
       color: "#0091FF",
       trend: "+15%"
     },
     {
       icon: <TrendingUp className="w-6 h-6" />,
       label: "Accuracy",
-      value: `${mockDashboardData.accuracy}%`,
+      value: `${analytics.accuracy}%`,
       color: "#A78BFA",
       trend: "+2%"
     }
@@ -58,6 +98,47 @@ const DashboardPage = ({ onLogout, darkMode, toggleDarkMode }) => {
 
   // Cumulative risk score for current transaction
   const currentTransactionRisk = 72;
+
+  if (loading) {
+    return (
+      <div className={darkMode ? "min-h-screen bg-gray-900" : "min-h-screen bg-[#F8FAFB]"}>
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onLogout={onLogout} />
+        <TopNav onMenuClick={() => setSidebarOpen(true)} darkMode={darkMode} onDarkModeToggle={toggleDarkMode} />
+
+        <section className="pt-24 pb-20 px-6">
+          <div className="max-w-7xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              {[...Array(4)].map((_, index) => (
+                <div key={index} className={`rounded-xl p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg`}>
+                  <div className="animate-pulse">
+                    <div className="h-6 bg-gray-300 dark:bg-gray-600 rounded w-1/3 mb-4"></div>
+                    <div className="h-8 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className={darkMode ? "min-h-screen bg-gray-900" : "min-h-screen bg-[#F8FAFB]"}>
+        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} onLogout={onLogout} />
+        <TopNav onMenuClick={() => setSidebarOpen(true)} darkMode={darkMode} onDarkModeToggle={toggleDarkMode} />
+
+        <section className="pt-24 pb-20 px-6">
+          <div className="max-w-7xl mx-auto">
+            <div className={`rounded-xl p-6 mb-8 ${darkMode ? 'bg-red-900/30 border border-red-800' : 'bg-red-50 border border-red-200'}`}>
+              <p className={darkMode ? "text-red-200" : "text-red-700"}>{error}</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className={darkMode ? "min-h-screen bg-gray-900" : "min-h-screen bg-[#F8FAFB]"}>
