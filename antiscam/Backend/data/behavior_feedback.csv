@@ -4,3 +4,5 @@ user_id,receiver,was_scam,comment,timestamp
 69061d281c86de8b417d5b91,loanhelp@upi,False,,2025-11-02T00:25:17.925085
 69061d281c86de8b417d5b91,loanhelp@upi,True,it was a scam,2025-11-02T00:32:59.544557
 69061d281c86de8b417d5b91,loanhelp@upi,True,scam,2025-11-02T09:23:39.567092
+69061d281c86de8b417d5b91,loanhelp@upi,True,loan scam,2025-11-02T09:52:53.327862
+69061d281c86de8b417d5b91,loanhelp@upi,True,scam,2025-11-02T10:58:04.057711
