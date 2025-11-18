@@ -9,6 +9,7 @@ import PINEntry from '../components/PINEntry';
 import FeedbackModal from '../components/FeedbackModal';
 import RealTimeAnalysis from '../components/RealTimeAnalysis';
 import { analyzeTransaction as analyzeTransactionAPI, completeTransaction, submitFeedback } from '../services/api';
+import { getToken } from '../services/auth';
 import { toast } from 'sonner';
 import { useWebSocket } from '../hooks/useWebSocket';
 
@@ -68,6 +69,14 @@ const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
     setShowResults(false);
     clearAnalysisResults(); // Clear previous analysis results
 
+    // Check if user is authenticated
+    const token = getToken();
+    if (!token) {
+      toast.error('Please log in to analyze transactions.');
+      setIsAnalyzing(false);
+      return;
+    }
+
     // Add user_id to transaction data
     const transactionData = {
       ...formData,
@@ -81,8 +90,26 @@ const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
       setResults(analysisResults);
       setShowResults(true);
     } catch (error) {
-      toast.error('Failed to analyze transaction. Please try again.');
-      console.error('Analysis error:', error);
+      // Extract detailed error message
+      let errorMessage = 'Failed to analyze transaction. Please try again.';
+      
+      if (error.response) {
+        // Server responded with error status
+        const errorData = error.response.data;
+        errorMessage = errorData?.error || errorData?.message || `Server error: ${error.response.status}`;
+        console.error('Analysis error response:', error.response.status, errorData);
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage = 'Unable to connect to server. Please check if the backend is running.';
+        console.error('Analysis error - no response:', error.request);
+      } else {
+        // Error setting up the request
+        errorMessage = error.message || errorMessage;
+        console.error('Analysis error:', error.message);
+      }
+      
+      toast.error(errorMessage);
+      console.error('Full error object:', error);
     } finally {
       setIsAnalyzing(false);
     }
@@ -141,19 +168,11 @@ const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
 
       toast.success('Transaction completed successfully!');
 
-      // Show feedback if risk was detected
-      if (results?.overallRisk >= 40) {
-        setTimeout(() => {
-          setShowFeedback(true);
-        }, 1000);
-      } else {
-        // Reset everything after safe transaction
-        setTimeout(() => {
-          setResults(null);
-          setCurrentTransaction(null);
-          setCompletedTxId(null);
-        }, 2000);
-      }
+      // Always show feedback after payment, regardless of risk score
+      // This allows users to report scams even if agents didn't flag high risk
+      setTimeout(() => {
+        setShowFeedback(true);
+      }, 1000);
     } catch (error) {
       toast.error('Failed to complete transaction. Please try again.');
       console.error('Transaction completion error:', error);
@@ -162,13 +181,66 @@ const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
 
   const handleFeedbackSubmit = async (feedbackData) => {
     try {
-      await submitFeedback({
+      // Prepare feedback payload
+      const feedbackPayload = {
         transaction_id: completedTxId,
         receiver: currentTransaction.upiId,
         user_id: userId,
         was_scam: feedbackData.was_scam,
         comment: feedbackData.comment
-      });
+      };
+
+      // If reporting as scam, ALWAYS include agent outputs and transaction data for threat intel
+      // This ensures the data is available even if results state was cleared
+      if (feedbackData.was_scam) {
+        const transactionData = {
+          receiver: currentTransaction.upiId,
+          amount: parseFloat(currentTransaction.amount),
+          reason: currentTransaction.message || '',
+          user_id: userId,
+          time: currentTransaction.time || new Date().toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }),
+          typing_speed: currentTransaction.typing_speed || null,
+          hesitation_count: currentTransaction.hesitation_count || null
+        };
+
+        // Try to get agent outputs from results, or reconstruct from stored data
+        let agentOutputs = [];
+        if (results && results._agentOutputs) {
+          agentOutputs = results._agentOutputs;
+        } else if (results && results.agents) {
+          // Fallback: reconstruct from agent results in response
+          agentOutputs = results.agents.map(agent => ({
+            risk_score: agent.riskScore || 0,
+            message: agent.message || '',
+            details: agent.details || ''
+          }));
+        } else {
+          // Last resort: create basic agent outputs from overall risk
+          // Backend will handle this better, but we provide something
+          const overallRisk = results?.overallRisk || 50;
+          agentOutputs = [
+            { risk_score: overallRisk * 0.25 },
+            { risk_score: overallRisk * 0.25 },
+            { risk_score: overallRisk * 0.25 },
+            { risk_score: overallRisk * 0.25 }
+          ];
+        }
+
+        feedbackPayload.agent_outputs = agentOutputs;
+        feedbackPayload.transaction = transactionData;
+        
+        console.log('📦 Feedback payload with threat intel data:', {
+          has_agent_outputs: agentOutputs.length > 0,
+          has_transaction: !!transactionData,
+          receiver: transactionData.receiver
+        });
+      }
+
+      await submitFeedback(feedbackPayload);
 
       if (feedbackData.was_scam) {
         toast.success('Thank you for reporting! This helps protect others.');
@@ -185,23 +257,59 @@ const DemoPage = ({ onLogout, darkMode, toggleDarkMode }) => {
         setCompletedTxId(null);
       }, 1000);
     } catch (error) {
-      toast.error('Failed to submit feedback. Please try again.');
-      console.error('Feedback error:', error);
+      // Extract detailed error message
+      let errorMessage = 'Failed to submit feedback. Please try again.';
+      
+      if (error.response) {
+        // Server responded with error status
+        const errorData = error.response.data;
+        errorMessage = errorData?.error || errorData?.message || `Server error: ${error.response.status}`;
+        console.error('Feedback error response:', error.response.status, errorData);
+      } else if (error.request) {
+        // Request was made but no response received
+        errorMessage = 'Unable to connect to server. Please check if the backend is running.';
+        console.error('Feedback error - no response:', error.request);
+      } else {
+        // Error setting up the request
+        errorMessage = error.message || errorMessage;
+        console.error('Feedback error:', error.message);
+      }
+      
+      toast.error(errorMessage);
+      console.error('Full error object:', error);
     }
   };
 
   const handleReport = async () => {
-    if (!currentTransaction) return;
+    if (!currentTransaction || !results) return;
 
     try {
-      // Call backend API to report scam
+      // Call backend API to report scam with agent outputs and transaction data
       const { reportScam } = await import('../services/api');
+      
+      // Prepare transaction data for threat intel
+      const transactionData = {
+        receiver: currentTransaction.upiId,
+        amount: parseFloat(currentTransaction.amount),
+        reason: currentTransaction.message || '',
+        user_id: userId,
+        time: currentTransaction.time || new Date().toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }),
+        typing_speed: currentTransaction.typing_speed || null,
+        hesitation_count: currentTransaction.hesitation_count || null
+      };
+
       await reportScam({
         receiver: currentTransaction.upiId,
-        reason: `High risk scam detected (Risk: ${results?.overallRisk || 'N/A'}%)`
+        reason: `High risk scam detected (Risk: ${results?.overallRisk || 'N/A'}%)`,
+        agent_outputs: results._agentOutputs || [], // Raw agent outputs from analysis
+        transaction: transactionData
       });
 
-      toast.success('Scam reported! Thank you for helping protect the community.');
+      toast.success('Scam reported! This will help improve our detection system.');
     } catch (error) {
       toast.error('Failed to report scam. Please try again.');
       console.error('Report error:', error);

@@ -71,6 +71,18 @@ const webpackConfig = {
       return webpackConfig;
     },
   },
+  jest: {
+    configure: (jestConfig) => {
+      jestConfig.moduleNameMapper = {
+        ...(jestConfig.moduleNameMapper || {}),
+        '^@/(.*)$': '<rootDir>/src/$1',
+        '^react-router-dom$': '<rootDir>/src/__mocks__/react-router-dom.js',
+        '^axios$': '<rootDir>/src/__mocks__/axios.js',
+        '^@/hooks/useWebSocket$': '<rootDir>/src/__mocks__/useWebSocket.js',
+      };
+      return jestConfig;
+    },
+  },
 };
 
 // Only add babel plugin if visual editing is enabled

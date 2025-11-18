@@ -5,10 +5,12 @@ import warnings
 # Suppress eventlet warnings
 warnings.filterwarnings('ignore', category=UserWarning)
 import os
+import atexit
 import pandas as pd
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 import logging
+from apscheduler.schedulers.background import BackgroundScheduler
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,11 +29,13 @@ from agents.retrain_pattern_manual import retrain_pattern_model
 from database.db import get_db, connect
 from utils.score_aggregator import aggregate_scores
 from routes.auth import auth_bp
+from routes.threat_intel import create_threat_intel_blueprint
 from utils.auth import token_required
 from typing import Dict, Any, Optional
 from services.alert_service import AlertService
 from services.gemini_service import gemini_service
 from services.transaction_service import init_transaction_service, get_transaction_service
+from services.threat_intel_service import ThreatIntelService
 
 # -------------------------------------------------------------
 # Flask setup
@@ -52,11 +56,44 @@ socketio = SocketIO(
 # Initialize alert service
 alert_service = AlertService(socketio)
 
-# Initialize transaction service
+# Initialize transaction service & CTIH
 transaction_service = init_transaction_service(socketio)
+threat_intel_service = ThreatIntelService()
+alert_service.set_threat_intel_service(threat_intel_service)
+
+# Schedule nightly dynamic clustering refresh
+scheduler = BackgroundScheduler(timezone=timezone.utc)
+
+
+def _scheduled_cluster_refresh():
+    try:
+        threat_intel_service.refresh_dynamic_clusters(force=True)
+    except Exception as exc:
+        print(f"⚠️ Scheduled cluster refresh failed: {exc}")
+
+
+def _start_scheduler():
+    if scheduler.get_jobs():
+        return
+    scheduler.add_job(
+        _scheduled_cluster_refresh,
+        trigger="cron",
+        hour=0,
+        minute=0,
+        id="dynamic_cluster_refresh",
+        replace_existing=True,
+    )
+    scheduler.start()
+    atexit.register(lambda: scheduler.shutdown(wait=False))
+
+
+if os.environ.get("DISABLE_CLUSTER_SCHEDULER") != "1":
+    _start_scheduler()
 
 # Register blueprints
 app.register_blueprint(auth_bp)
+app.register_blueprint(create_threat_intel_blueprint(threat_intel_service))
+app.config["THREAT_INTEL_SERVICE"] = threat_intel_service
 
 # Configure logging to suppress expected 401 errors for unauthenticated requests
 class Filter401(logging.Filter):
@@ -136,7 +173,7 @@ def initialize_agents() -> bool:
     global pattern_agent, network_agent, behavior_agent, biometric_agent
     try:
         pattern_agent = PatternAgent()
-        network_agent = NetworkAgent()
+        network_agent = NetworkAgent(threat_intel_service=threat_intel_service)
         behavior_agent = BehaviorAgent()
         biometric_agent = BiometricAgent()
         print("✅ All AI agents initialized successfully!")
@@ -363,6 +400,75 @@ def analyze_transaction():
         
         overall_risk = aggregate_scores(agents)
 
+        # Central Threat Intelligence Hub integration
+        # Only read existing threat intel data for alerts, don't record new data
+        # New data will only be recorded when user explicitly reports a scam
+        threat_intel_snapshot = {}
+        receiver_threat_score = 0.0
+        # Initialize variables for threat intel checks
+        trending_match = None
+        cluster_member = None
+        cluster_match = None
+        
+        if threat_intel_service:
+            
+            try:
+                # Only read existing threat score, don't record new data
+                receiver_threat_score = threat_intel_service.get_receiver_threat_score(
+                    transaction.get('receiver')
+                )
+                
+                # Get existing snapshot if available (for alerts and response)
+                if receiver_threat_score > 0:
+                    threat_intel_snapshot = threat_intel_service.get_receiver_snapshot(
+                        transaction.get('receiver')
+                    )
+                
+                receiver = transaction.get('receiver', '')
+                
+                # Check if receiver is in trending threats
+                trending_match = threat_intel_service.check_receiver_in_trending(receiver)
+                if trending_match and alert_service:
+                    print(f"🔥 Trending threat detected for user {user_id}: {trending_match.get('receiver')} ({trending_match.get('totalReports', 0)} reports)")
+                    alert_service.send_trending_threat_alert(
+                        user_id,
+                        transaction,
+                        trending_match
+                    )
+                
+                # Check if receiver is a member of any cluster
+                cluster_member = threat_intel_service.check_receiver_in_clusters(receiver)
+                if cluster_member and alert_service:
+                    print(f"🎯 Cluster member detected for user {user_id}: {cluster_member.get('name')} for receiver {receiver}")
+                    alert_service.send_cluster_member_alert(
+                        user_id,
+                        transaction,
+                        cluster_member
+                    )
+                
+                # Check if transaction matches an existing cluster pattern (message similarity)
+                cluster_match = threat_intel_service.check_cluster_match(
+                    transaction,
+                    agents,
+                    similarity_threshold=0.70  # 70% similarity threshold (lowered for better detection)
+                )
+                
+                # Send cluster match alert if found (only if not already sent as cluster member)
+                if cluster_match and alert_service and not cluster_member:
+                    print(f"🎯 Cluster pattern match detected for user {user_id}: {cluster_match.get('name')} (similarity: {cluster_match.get('similarity', 0):.1%})")
+                    alert_service.send_cluster_match_alert(
+                        user_id,
+                        transaction,
+                        cluster_match
+                    )
+                elif cluster_match and not cluster_member:
+                    print(f"⚠️ Cluster match found but alert_service not available")
+            except Exception as intel_error:
+                print(f"⚠️ Threat Intel update failed: {intel_error}")
+
+        if receiver_threat_score:
+            overall_risk = round((overall_risk * 0.7) + (receiver_threat_score * 0.3), 1)
+
         # Prepare agent results for response and AI explanation
         agent_results = [
             {
@@ -403,17 +509,51 @@ def analyze_transaction():
             }
         ]
 
-        # Generate AI explanation using Gemini
+        threat_intel_payload = {}
+        if threat_intel_snapshot:
+            last_seen = threat_intel_snapshot.get('last_seen')
+            if hasattr(last_seen, 'isoformat'):
+                last_seen = last_seen.isoformat()
+            threat_intel_payload = {
+                'receiver': threat_intel_snapshot.get('receiver', transaction.get('receiver')),
+                'threatScore': receiver_threat_score,
+                'avgAgentRisk': threat_intel_snapshot.get('avg_agent_risk', 0),
+                'behaviorAnomalies': threat_intel_snapshot.get('behavior_anomalies', 0),
+                'patternFlags': threat_intel_snapshot.get('pattern_flags', []),
+                'velocityScore': threat_intel_snapshot.get('velocity_score', 0),
+                'geoAnomalies': threat_intel_snapshot.get('geo_anomalies', 0),
+                'totalReports': threat_intel_snapshot.get('total_reports', 0),
+                'lastSeen': last_seen,
+                'clusterMatch': cluster_match,  # Include cluster match info in response
+                'trendingThreat': trending_match,  # Include trending threat info if receiver is trending
+                'clusterMember': cluster_member  # Include cluster member info if receiver is in a cluster
+            }
+
+        # Generate AI explanation using Gemini (include threat intel data)
         ai_explanation = ""
         if gemini_service.is_enabled():
-            ai_explanation = gemini_service.generate_fraud_explanation(transaction, agent_results, overall_risk)
+            # Pass threat intel information to Gemini for context-aware explanations
+            threat_intel_for_gemini = threat_intel_payload if threat_intel_payload else {}
+            ai_explanation = gemini_service.generate_fraud_explanation(
+                transaction, 
+                agent_results, 
+                overall_risk,
+                threat_intel=threat_intel_for_gemini
+            )
             print(f"AI Explanation generated: {ai_explanation[:100]}...")  # Log first 100 chars
 
         response = {
             'overallRisk': overall_risk,
             'aiExplanation': ai_explanation,
-            'agents': agent_results
+            'agents': agent_results,
+            'threatIntel': threat_intel_payload,
+            # Include raw agent outputs for reporting (will be used when user reports scam)
+            '_agentOutputs': agents,
+            '_transaction': transaction
         }
+
+        if receiver_threat_score >= 85:
+            alert_service.push_threat_alerts()
 
         print(f"Returning response with AI explanation length: {len(ai_explanation)}")
         
@@ -433,10 +573,16 @@ def analyze_transaction():
         return jsonify(response), 200
         
     except ValueError as e:
+        print(f"ValueError in analyze_transaction: {e}")
         return jsonify({'error': f'Invalid data format: {str(e)}'}), 400
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         print(f"Error in analyze_transaction: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+        print(f"Traceback: {error_trace}")
+        # Return more detailed error in development, generic in production
+        error_message = str(e) if app.debug else 'Internal server error'
+        return jsonify({'error': error_message, 'type': type(e).__name__}), 500
 
 @app.route('/api/report', methods=['POST'])
 @token_required
@@ -450,6 +596,9 @@ def report_scam():
             return jsonify({'error': 'User not authenticated'}), 401
             
         reason = data.get('reason', 'Reported scam')
+        transaction_id = data.get('transaction_id')  # Optional: to track if already reported
+        agent_outputs = data.get('agent_outputs')  # Agent analysis results
+        transaction_data = data.get('transaction')  # Full transaction data
 
         if not receiver:
             return jsonify({'error': 'Missing receiver ID'}), 400
@@ -458,6 +607,22 @@ def report_scam():
         if db is None:
             return jsonify({'error': 'Database connection failed'}), 500
 
+        # Check if this specific transaction was already reported to threat intel
+        already_reported_to_threat_intel = False
+        if transaction_id and threat_intel_service:
+            history_collection = threat_intel_service._get_collection(threat_intel_service.history_collection_name)
+            if history_collection:
+                # Check if this transaction was already recorded
+                existing_record = history_collection.find_one({
+                    "transaction.user_id": user_id,
+                    "receiver": receiver,
+                    "transaction.amount": transaction_data.get('amount') if transaction_data else None,
+                    "transaction.reason": transaction_data.get('reason') if transaction_data else None
+                })
+                if existing_record:
+                    already_reported_to_threat_intel = True
+
+        # Update scam_reports collection (legacy collection, still used by Network Agent)
         scam_reports = db.scam_reports
         existing = scam_reports.find_one({"receiver_id": receiver})
 
@@ -492,14 +657,47 @@ def report_scam():
             })
             count = 1
 
+        # Record to threat intel for clustering (only if not already reported)
+        if threat_intel_service and agent_outputs and transaction_data and not already_reported_to_threat_intel:
+            try:
+                # Prepare transaction dict for threat intel
+                transaction_for_intel = {
+                    'receiver': receiver,
+                    'amount': transaction_data.get('amount', 0),
+                    'reason': transaction_data.get('reason', reason),
+                    'user_id': user_id,
+                    'time': transaction_data.get('time', ''),
+                    'typing_speed': transaction_data.get('typing_speed'),
+                    'hesitation_count': transaction_data.get('hesitation_count')
+                }
+                
+                # Record agent outputs to threat intel (triggers clustering)
+                threat_intel_service.record_agent_outputs(transaction_for_intel, agent_outputs)
+                
+                # Update threat score
+                threat_intel_service.update_and_get_score(
+                    receiver,
+                    agent_outputs,
+                    transaction_for_intel
+                )
+                
+                print(f"✅ Recorded scam report to threat intel for receiver: {receiver}")
+            except Exception as intel_error:
+                print(f"⚠️ Failed to record to threat intel: {intel_error}")
+
         return jsonify({
             'success': True,
-            'message': f'Scam reported successfully. Total reports: {count}'
+            'message': f'Scam reported successfully. Total reports: {count}',
+            'recorded_to_threat_intel': not already_reported_to_threat_intel
         }), 200
 
     except Exception as e:
         print(f"Error in report_scam: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+        import traceback
+        print(traceback.format_exc())
+        # Return more detailed error in development, generic in production
+        error_message = str(e) if app.debug else 'Internal server error'
+        return jsonify({'error': error_message, 'type': type(e).__name__}), 500
 
 @app.route('/api/history', methods=['GET'])
 @token_required
@@ -634,6 +832,128 @@ def submit_feedback():
         save_feedback_and_check_retrain(feedback_entry)
         save_pattern_feedback_and_retrain(feedback_entry)  # 🆕 added
 
+        # If user reports it was a scam, record to threat intel for clustering
+        # (only if not already reported via the Report Scam button)
+        if was_scam and threat_intel_service:
+            print(f"🔍 Processing scam feedback for receiver: {receiver}, transaction_id: {transaction_id}")
+            
+            # Check if this transaction was already reported to threat intel
+            already_reported = False
+            history_collection = threat_intel_service._get_collection(threat_intel_service.history_collection_name)
+            
+            # Get agent outputs and transaction data from request (preferred)
+            agent_outputs = data.get('agent_outputs')
+            transaction_data = data.get('transaction')
+            
+            print(f"📦 Received data - agent_outputs: {bool(agent_outputs)}, transaction_data: {bool(transaction_data)}")
+            
+            # If not provided in request, try to get from transaction document
+            if (not agent_outputs or not transaction_data) and transaction_id:
+                transactions = db.transactions
+                from bson import ObjectId
+                from bson.errors import InvalidId
+                try:
+                    # Validate ObjectId format
+                    if transaction_id and len(transaction_id) == 24:
+                        tx_doc = transactions.find_one({"_id": ObjectId(transaction_id)})
+                        if tx_doc:
+                            # Check if already recorded
+                            if history_collection:
+                                existing_record = history_collection.find_one({
+                                    "transaction.user_id": user_id,
+                                    "receiver": receiver,
+                                    "transaction.amount": tx_doc.get('amount'),
+                                    "transaction.reason": tx_doc.get('reason')
+                                })
+                                if existing_record:
+                                    already_reported = True
+                            
+                            # If not already reported, try to reconstruct data
+                            if not already_reported:
+                                if not agent_outputs or len(agent_outputs) == 0:
+                                    # Try to reconstruct agent outputs from stored risk_score
+                                    # This is a fallback - ideally frontend should pass agent_outputs
+                                    risk_score = tx_doc.get('risk_score', 0)
+                                    if risk_score > 0:
+                                        agent_outputs = [
+                                            {'risk_score': risk_score * 0.25, 'message': 'Pattern analysis'},
+                                            {'risk_score': risk_score * 0.25, 'message': 'Network analysis'},
+                                            {'risk_score': risk_score * 0.25, 'message': 'Behavior analysis'},
+                                            {'risk_score': risk_score * 0.25, 'message': 'Biometric analysis'}
+                                        ]
+                                        print(f"📊 Reconstructed agent outputs from risk_score: {risk_score}")
+                                    else:
+                                        # If no risk_score, use a default based on the fact user reported it as scam
+                                        agent_outputs = [
+                                            {'risk_score': 50, 'message': 'User reported scam'},
+                                            {'risk_score': 50, 'message': 'User reported scam'},
+                                            {'risk_score': 50, 'message': 'User reported scam'},
+                                            {'risk_score': 50, 'message': 'User reported scam'}
+                                        ]
+                                        print(f"📊 Created default agent outputs for user-reported scam")
+                                
+                                if not transaction_data and tx_doc:
+                                    transaction_data = {
+                                        'receiver': receiver,
+                                        'amount': tx_doc.get('amount', 0),
+                                        'reason': tx_doc.get('reason', ''),
+                                        'user_id': user_id,
+                                        'time': tx_doc.get('time', ''),
+                                        'typing_speed': tx_doc.get('typing_speed'),
+                                        'hesitation_count': tx_doc.get('hesitation_count')
+                                    }
+                                    print(f"📊 Reconstructed transaction_data from transaction document")
+                except (InvalidId, ValueError, TypeError) as id_error:
+                    print(f"⚠️ Invalid transaction_id format: {id_error}")
+                except Exception as tx_error:
+                    print(f"⚠️ Error checking transaction for threat intel: {tx_error}")
+            
+            # Record to threat intel if we have the data and not already reported
+            print(f"🔍 Final check - already_reported: {already_reported}, agent_outputs: {bool(agent_outputs) and len(agent_outputs) > 0}, transaction_data: {bool(transaction_data)}")
+            
+            if already_reported:
+                print(f"⏭️ Skipping recording - transaction already reported to threat intel")
+            elif not agent_outputs or len(agent_outputs) == 0:
+                print(f"⚠️ Cannot record - missing or empty agent_outputs. Attempting to create minimal agent outputs...")
+                # Create minimal agent outputs as last resort
+                agent_outputs = [
+                    {'risk_score': 50, 'message': 'User reported as scam'},
+                    {'risk_score': 50, 'message': 'User reported as scam'},
+                    {'risk_score': 50, 'message': 'User reported as scam'},
+                    {'risk_score': 50, 'message': 'User reported as scam'}
+                ]
+                print(f"📊 Created minimal agent outputs for recording")
+            
+            if not transaction_data:
+                print(f"⚠️ Cannot record - missing transaction_data. Creating from available data...")
+                # Create transaction_data from available info
+                transaction_data = {
+                    'receiver': receiver,
+                    'amount': 0,  # Will be updated if available
+                    'reason': data.get('comment', 'User reported scam'),
+                    'user_id': user_id,
+                    'time': '',
+                    'typing_speed': None,
+                    'hesitation_count': None
+                }
+                print(f"📊 Created minimal transaction_data for recording")
+            
+            # Now try to record if we have both
+            if agent_outputs and len(agent_outputs) > 0 and transaction_data:
+                try:
+                    print(f"📝 Recording to threat intel - receiver: {receiver}, agent_outputs count: {len(agent_outputs) if agent_outputs else 0}")
+                    threat_intel_service.record_agent_outputs(transaction_data, agent_outputs)
+                    threat_intel_service.update_and_get_score(
+                        receiver,
+                        agent_outputs,
+                        transaction_data
+                    )
+                    print(f"✅ Successfully recorded scam feedback to threat intel for receiver: {receiver}")
+                except Exception as intel_error:
+                    print(f"❌ Failed to record feedback to threat intel: {intel_error}")
+                    import traceback
+                    print(traceback.format_exc())
+
         return jsonify({
             'success': True,
             'message': 'Feedback submitted successfully'
@@ -641,7 +961,11 @@ def submit_feedback():
 
     except Exception as e:
         print(f"Error in submit_feedback: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
+        import traceback
+        print(traceback.format_exc())
+        # Return more detailed error in development
+        error_message = str(e) if app.debug else 'Internal server error'
+        return jsonify({'error': error_message, 'type': type(e).__name__}), 500
 
 @app.route('/api/transaction-history', methods=['GET'])
 @token_required

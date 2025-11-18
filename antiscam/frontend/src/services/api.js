@@ -64,7 +64,25 @@ export const analyzeTransaction = async (transactionData) => {
     const response = await api.post('/api/analyze', payload);
     return response.data;
   } catch (error) {
-    console.error('Error analyzing transaction:', error);
+    // Log detailed error information
+    if (error.response) {
+      // Server responded with error status
+      console.error('Error analyzing transaction - Response:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
+      });
+    } else if (error.request) {
+      // Request was made but no response received
+      console.error('Error analyzing transaction - No response:', {
+        url: error.config?.url,
+        method: error.config?.method,
+        baseURL: error.config?.baseURL
+      });
+    } else {
+      // Error setting up the request
+      console.error('Error analyzing transaction - Setup error:', error.message);
+    }
     throw error;
   }
 };
@@ -74,7 +92,10 @@ export const reportScam = async (reportData) => {
   try {
     const payload = {
       receiver: reportData.receiver || reportData.upiId,
-      reason: reportData.reason || 'Reported scam'
+      reason: reportData.reason || 'Reported scam',
+      transaction_id: reportData.transaction_id,
+      agent_outputs: reportData.agent_outputs, // Agent analysis results for threat intel
+      transaction: reportData.transaction // Full transaction data for threat intel
     };
 
     const response = await api.post('/api/report', payload);
@@ -118,6 +139,43 @@ export const submitFeedback = async (feedbackData) => {
     return response.data;
   } catch (error) {
     console.error('Error submitting feedback:', error);
+    throw error;
+  }
+};
+
+export const getThreatIntelGlobal = async () => {
+  try {
+    const response = await api.get('/api/threat-intel/global');
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching global threat intel:', error);
+    throw error;
+  }
+};
+
+export const getThreatIntelClusters = async (options = {}) => {
+  try {
+    const params = [];
+    if (options.includeInactive) {
+      params.push('include_inactive=1');
+    }
+    const query = params.length ? `?${params.join('&')}` : '';
+    const response = await api.get(`/api/intel/dynamic-clusters${query}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching threat clusters:', error);
+    throw error;
+  }
+};
+
+export const getDynamicThreatClusters = getThreatIntelClusters;
+
+export const getReceiverThreatIntel = async (receiver) => {
+  try {
+    const response = await api.get(`/api/threat-intel/receiver/${encodeURIComponent(receiver)}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching receiver intel:', error);
     throw error;
   }
 };

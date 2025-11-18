@@ -4,10 +4,13 @@ import Sidebar from '../components/Sidebar';
 import TopNav from '../components/TopNav';
 import DashboardCard from '../components/DashboardCard';
 import TransactionHistory from '../components/TransactionHistory';
-import { Shield, AlertTriangle, Users, TrendingUp } from 'lucide-react';
+import { Shield, AlertTriangle, Users, TrendingUp, AlertOctagon } from 'lucide-react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { getUserAnalytics, getGlobalAnalytics } from '../services/analytics';
 import { Progress } from '../components/ui/progress';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { useSocketContext } from '@/context/SocketContext';
 
 const DashboardPage = ({ onLogout, darkMode, toggleDarkMode }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -19,6 +22,45 @@ const DashboardPage = ({ onLogout, darkMode, toggleDarkMode }) => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const socketContext = useSocketContext();
+  const threatIntelAlerts = socketContext?.threatIntelAlerts || [];
+  const dismissThreatIntelAlert = socketContext?.dismissThreatIntelAlert || (() => {});
+
+  const renderThreatAlert = (alert) => {
+    const receiverList = alert?.threats?.map((threat) => threat.receiver).slice(0, 3).join(', ');
+    return (
+      <motion.div
+        key={alert.id}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="border border-amber-200 bg-amber-50 dark:bg-amber-900/40 dark:border-amber-700 rounded-2xl p-4 flex flex-col gap-3"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-amber-500/10 rounded-full flex items-center justify-center">
+            <AlertOctagon className="w-5 h-5 text-amber-600 dark:text-amber-300" />
+          </div>
+          <div>
+            <p className="font-semibold text-amber-700 dark:text-amber-200">High-risk receivers detected</p>
+            <p className="text-sm text-amber-600/80 dark:text-amber-200/80">
+              {receiverList || 'Monitoring new activity across CTIH'}
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(alert?.threats || []).map((threat) => (
+            <Badge key={threat.receiver} variant="outline" className="bg-white/40 dark:bg-gray-900/40">
+              {threat.receiver}
+            </Badge>
+          ))}
+        </div>
+        <div className="flex justify-end">
+          <Button size="sm" variant="ghost" onClick={() => dismissThreatIntelAlert(alert.id)}>
+            Dismiss
+          </Button>
+        </div>
+      </motion.div>
+    );
+  };
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -156,6 +198,12 @@ const DashboardPage = ({ onLogout, darkMode, toggleDarkMode }) => {
             <h1 className={darkMode ? "text-4xl sm:text-5xl font-bold mb-4 text-white" : "text-4xl sm:text-5xl font-bold mb-4 text-gray-900"}>Analytics Dashboard</h1>
             <p className={darkMode ? "text-gray-300 text-lg" : "text-gray-600 text-lg"}>Real-time insights from FIGMENT's collective intelligence</p>
           </motion.div>
+
+          {threatIntelAlerts.length > 0 && (
+            <div className="mb-8 space-y-4">
+              {threatIntelAlerts.map(renderThreatAlert)}
+            </div>
+          )}
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
