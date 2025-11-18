@@ -1,15 +1,17 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, LayoutDashboard, Sparkles, BarChart3, LogOut, X } from 'lucide-react';
+import { Shield, LayoutDashboard, Sparkles, BarChart3, LogOut, X, BrainCircuit } from 'lucide-react';
 import { Button } from './ui/button';
+import APP_ROUTES from '@/routes';
 
 const Sidebar = ({ isOpen, onClose, onLogout }) => {
   const location = useLocation();
 
   const menuItems = [
-    { name: 'Dashboard', path: '/dashboard', icon: <LayoutDashboard className="w-5 h-5" /> },
-    { name: 'Try Demo', path: '/demo', icon: <Sparkles className="w-5 h-5" /> },
-    { name: 'AI Analysis', path: '/ai-analysis', icon: <BarChart3 className="w-5 h-5" /> },
+    { name: 'Dashboard', path: APP_ROUTES.dashboard, icon: <LayoutDashboard className="w-5 h-5" /> },
+    { name: 'Threat Intelligence Hub', path: APP_ROUTES.threatIntel, icon: <BrainCircuit className="w-5 h-5" /> },
+    { name: 'Try Demo', path: APP_ROUTES.demo, icon: <Sparkles className="w-5 h-5" /> },
+    { name: 'AI Analysis', path: APP_ROUTES.aiAnalysis, icon: <BarChart3 className="w-5 h-5" /> },
   ];
 
   return (

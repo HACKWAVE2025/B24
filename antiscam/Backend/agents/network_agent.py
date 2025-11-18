@@ -6,8 +6,8 @@ class NetworkAgent:
     Uses crowd-sourced intelligence from user reports
     """
     
-    def __init__(self):
-        pass
+    def __init__(self, threat_intel_service=None):
+        self.threat_intel_service = threat_intel_service
     
     def analyze(self, transaction):
         """
@@ -82,6 +82,13 @@ class NetworkAgent:
             evidence.append("No scam reports found for this UPI ID")
             evidence.append("Receiver ID not in scam database")
         
+        cti_score = None
+        if self.threat_intel_service:
+            cti_score = self.threat_intel_service.get_receiver_threat_score(receiver)
+            if cti_score:
+                risk_score = max(risk_score, cti_score)
+                evidence.append(f"CTIH threat score: {cti_score:.1f}")
+
         details = f"""
         Checked receiver UPI ID against database of {report_count} scam reports.
         {'This ID has been flagged by other users as suspicious.' if report_count > 0 else 'This ID has not been reported before.'}

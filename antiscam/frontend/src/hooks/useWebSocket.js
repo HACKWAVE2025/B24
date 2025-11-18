@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
+import { toast } from 'sonner';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 export const useWebSocket = (isAuthenticated = false) => {
   const [alerts, setAlerts] = useState([]);
   const [analysisResults, setAnalysisResults] = useState([]);
+  const [threatIntelAlerts, setThreatIntelAlerts] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef(null);
@@ -116,6 +118,52 @@ export const useWebSocket = (isAuthenticated = false) => {
       socket.on('analysis_result', (result) => {
         console.log('🔬 New analysis result received:', result);
         setAnalysisResults((prev) => [...prev, result]);
+
+        const ctihScore = result?.threatIntel?.threatScore ?? result?.threatIntel?.score ?? 0;
+        if (ctihScore > 70) {
+          toast.warning("⚠ High Threat Intelligence Warning", {
+            description: "This receiver matches ongoing scam activity reported by CTIH.",
+          });
+        }
+      });
+
+      socket.on('threat_intel_alert', (payload) => {
+        console.log('🛰️ Threat intel alert received:', payload);
+        const alertPayload = {
+          ...payload,
+          id: payload.generated_at || Date.now(),
+        };
+        setThreatIntelAlerts((prev) => [...prev, alertPayload]);
+      });
+
+      // Receive cluster match alerts
+      socket.on('cluster_match_alert', (alert) => {
+        console.log('🎯 Cluster match alert received:', alert);
+        setAlerts((prev) => [alert, ...prev]);
+        toast.warning("⚠️ Known Scam Pattern Detected", {
+          description: alert.message || `This transaction matches a known scam pattern: ${alert.cluster?.name || 'Unknown'}`,
+          duration: 6000,
+        });
+      });
+
+      // Receive trending threat alerts
+      socket.on('trending_threat_alert', (alert) => {
+        console.log('🔥 Trending threat alert received:', alert);
+        setAlerts((prev) => [alert, ...prev]);
+        toast.error("🚨 Trending Threat Detected", {
+          description: alert.message || `This receiver is in the trending threats list!`,
+          duration: 8000,
+        });
+      });
+
+      // Receive cluster member alerts
+      socket.on('cluster_member_alert', (alert) => {
+        console.log('🎯 Cluster member alert received:', alert);
+        setAlerts((prev) => [alert, ...prev]);
+        toast.warning("⚠️ Known Scam Cluster Member", {
+          description: alert.message || `This receiver is part of a known scam cluster: ${alert.cluster?.name || 'Unknown'}`,
+          duration: 6000,
+        });
       });
 
       // Receive recent transactions
@@ -151,6 +199,10 @@ export const useWebSocket = (isAuthenticated = false) => {
     setAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
   };
 
+  const dismissThreatIntelAlert = (alertId) => {
+    setThreatIntelAlerts((prev) => prev.filter((alert) => alert.id !== alertId));
+  };
+
   const clearAnalysisResults = () => {
     setAnalysisResults([]);
   };
@@ -182,6 +234,8 @@ export const useWebSocket = (isAuthenticated = false) => {
     recentTransactions,
     joinUserRoom,
     leaveUserRoom,
-    requestRecentTransactions
+    requestRecentTransactions,
+    threatIntelAlerts,
+    dismissThreatIntelAlert,
   };
 };

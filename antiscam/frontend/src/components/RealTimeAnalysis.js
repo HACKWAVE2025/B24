@@ -1,6 +1,27 @@
-import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Brain, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
+import { Brain, AlertTriangle, CheckCircle, Clock, Radar } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+
+const getClusterLabel = (threatIntel) => {
+    if (!threatIntel) return 'Unclassified';
+    const cluster = threatIntel.cluster || threatIntel.clusterLabel;
+    if (cluster) return cluster;
+
+    const flags = threatIntel.patternFlags || threatIntel.flags || [];
+    const joined = flags.join(' ').toLowerCase();
+    if (joined.includes('loan')) return 'Loan Scam';
+    if (joined.includes('otp') || joined.includes('kyc')) return 'OTP Scam';
+    if (joined.includes('job')) return 'Fake Job Scam';
+    if (joined.includes('invest') || joined.includes('crypto')) return 'Investment Scam';
+    return 'Behavioral Alert';
+};
+
+const getCtihBadge = (score = 0) => {
+    if (score >= 70) return 'bg-red-500/10 text-red-500 border border-red-500/40';
+    if (score >= 40) return 'bg-amber-500/10 text-amber-500 border border-amber-500/40';
+    return 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/40';
+};
 
 const RealTimeAnalysis = ({ analysisResults, darkMode }) => {
     if (!analysisResults || analysisResults.length === 0) {
@@ -81,6 +102,34 @@ const RealTimeAnalysis = ({ analysisResults, darkMode }) => {
                                     </div>
                                     <p className={darkMode ? "text-gray-300 text-xs" : "text-gray-700 text-xs"}>
                                         {result.aiExplanation}
+                                    </p>
+                                </div>
+                            )}
+
+                            {result.threatIntel && (
+                                <div className="mt-4 space-y-3">
+                                    <Separator />
+                                    <div className="flex flex-wrap items-center gap-3">
+                                        <Badge className={`${getCtihBadge(result.threatIntel.threatScore ?? result.threatIntel.score ?? 0)} text-xs`}>
+                                            CTIH {Math.round(result.threatIntel.threatScore ?? result.threatIntel.score ?? 0)}%
+                                        </Badge>
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Radar className="w-4 h-4 text-indigo-500" />
+                                            <span>{getClusterLabel(result.threatIntel)}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {(result.threatIntel.patternFlags || result.threatIntel.flags || []).slice(0, 3).map((flag, idx) => (
+                                            <Badge key={`${flag}-${idx}`} variant="outline" className="text-xs">
+                                                {flag}
+                                            </Badge>
+                                        ))}
+                                        {!(result.threatIntel.patternFlags || result.threatIntel.flags || []).length && (
+                                            <span className="text-xs text-muted-foreground">No CTIH evidences supplied.</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Velocity score: {Math.round(result.threatIntel.velocityScore ?? result.threatIntel.velocity ?? 0)} • Geo anomalies: {Math.round(result.threatIntel.geoAnomalies ?? 0)}
                                     </p>
                                 </div>
                             )}

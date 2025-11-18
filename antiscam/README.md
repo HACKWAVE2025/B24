@@ -14,9 +14,11 @@ Each agent provides a **risk score with detailed explanations**, and the system 
 
 ## ✨ Recent Enhancements
 
-- **Gemini AI Integration** - Generates human-readable explanations for why transactions are flagged as scams
+- **Dynamic Threat Clustering** - Automatically groups similar scam patterns using ML embeddings and clustering algorithms
+- **Intelligent Alert System** - Real-time alerts for trending threats, cluster members, and pattern matches
+- **Gemini AI Integration** - Generates human-readable explanations with threat intelligence context
 - **Real-time Dashboard** - Shows analytics with data from MongoDB, refreshes every 5 minutes
-- **WebSocket Updates** - Real-time transaction analysis results
+- **WebSocket Updates** - Real-time transaction analysis results and threat alerts
 - **Improved Dark Mode** - Consistent styling across all components
 
 ---
@@ -168,9 +170,15 @@ Frontend runs on `http://localhost:3000`
 
 **How it works:**
 - Receives transaction details and individual agent scores
-- Creates contextual prompts for Gemini
-- Returns simple, actionable explanations for users
+- **Includes threat intelligence data** (trending threats, cluster matches, historical reports)
+- Creates contextual prompts for Gemini with full threat context
+- Returns simple, actionable explanations that mention threat intelligence when available
 - Falls back gracefully if API key is not configured
+
+**Threat Intelligence Context:**
+- If receiver is in trending threats → Explains report count and threat score
+- If receiver is in a known cluster → Mentions cluster name and pattern
+- If message matches a scam pattern → Describes pattern similarity and history
 
 ---
 
@@ -182,6 +190,7 @@ Frontend runs on `http://localhost:3000`
 - Transaction history tracking
 - Scam prevention metrics
 - Risk distribution visualization
+- **Threat Intelligence Hub** - Shows top 5 scam clusters and trending threats
 
 ---
 
@@ -189,6 +198,12 @@ Frontend runs on `http://localhost:3000`
 
 ### `POST /api/analyze`
 Analyze a transaction through all agents
+
+**Response includes:**
+- Individual agent scores
+- Overall risk assessment
+- AI-generated explanation (Gemini)
+- **Threat intelligence data** (trending threats, cluster matches, cluster members)
 
 ---
 
@@ -224,6 +239,20 @@ Get global analytics data
 
 ---
 
+### `GET /api/threat-intel/global`
+Get trending threats and scam clusters
+
+**Response:**
+- Top 5 trending threats (receivers with ≥5 reports)
+- Top 5 active scam clusters
+
+---
+
+### `GET /api/threat-intel/clusters`
+Get all active scam clusters (top 5 by average threat score)
+
+---
+
 ### `GET /health`
 Health check endpoint
 
@@ -243,25 +272,37 @@ Health check endpoint
    - Behavior Agent checks user patterns
    - Biometric Agent analyzes input behavior
 
-3. **Gemini AI generates explanation:**
+3. **Threat Intelligence Check:**
+   - Checks if receiver is in trending threats
+   - Checks if receiver is a cluster member
+   - Checks if message matches a known scam pattern
+   - Sends real-time alerts via WebSocket
+
+4. **Gemini AI generates explanation:**
    - Human-readable summary of risk factors
+   - **Includes threat intelligence context** (trending threats, clusters, patterns)
    - Simple language for non-technical users
 
-4. **Results displayed:**
+5. **Results displayed:**
    - Overall risk score
    - Individual agent scores
    - Detailed explanations
    - Evidence for each agent
    - AI-generated summary
+   - **Threat intelligence alerts** (if applicable):
+     - 🚨 Trending threat detected
+     - ⚠️ Known scam cluster member
+     - ⚠️ Scam pattern match
 
-5. **User decides:**
+6. **User decides:**
    - **Cancel** → Transaction cancelled
    - **Proceed Anyway** → Warning dialog → PIN entry → Transaction completes
 
-6. **After completion (if risk ≥ 40%):**
-   - Feedback modal appears
+7. **After completion:**
+   - Feedback modal appears (always shown, regardless of risk)
    - User confirms if it was actually a scam
    - If yes → Scam count incremented in database
+   - Transaction data used to update threat intelligence and clusters
 
 ---
 
@@ -289,7 +330,9 @@ REACT_APP_API_URL=http://localhost:5000
 
 ✅ **Multi-Agent AI System** - 4 specialized agents analyzing different aspects
 ✅ **Explainable AI** - Each agent provides detailed reasoning
-✅ **Gemini AI Explanations** - Human-readable fraud summaries
+✅ **Dynamic Threat Clustering** - Automatically groups similar scam patterns using ML
+✅ **Intelligent Alert System** - Real-time alerts for trending threats and cluster matches
+✅ **Gemini AI Explanations** - Human-readable fraud summaries with threat intelligence context
 ✅ **Real-Time Analysis** - Instant risk assessment before payment
 ✅ **Community Intelligence** - Crowd-sourced scam database
 ✅ **Behavior Learning** - Adapts to user's normal patterns
@@ -297,6 +340,7 @@ REACT_APP_API_URL=http://localhost:5000
 ✅ **PIN Confirmation** - Extra step for high-risk transactions
 ✅ **Transaction History** - Track all analyzed transactions
 ✅ **Real-time Dashboard** - Live analytics with MongoDB data
+✅ **Threat Intelligence Hub** - View trending threats and scam clusters
 
 ---
 

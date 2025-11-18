@@ -2,10 +2,23 @@ user_id,receiver,was_scam,comment,timestamp
 69061f210be787180c5b3c90,kycupdate@okaxis,True,Fraud,2025-11-01T22:57:56.377620
 69061d281c86de8b417d5b91,loanhelp@upi,False,,2025-11-02T00:25:17.925085
 69061d281c86de8b417d5b91,loanhelp@upi,True,it was a scam,2025-11-02T00:32:59.544557
-<<<<<<< HEAD
-6905fad6ef4cf45cf157509e,loanhelp@upi,True,A scam again,2025-11-17T10:12:08.215888
-=======
 69061d281c86de8b417d5b91,loanhelp@upi,True,loan scam,2025-11-02T09:52:53.327862
 69061d281c86de8b417d5b91,loanhelp@upi,True,scam,2025-11-02T10:58:04.057711
->>>>>>> b9010cde6153ce643580e6054f53d2e5883a69ee
 69061d281c86de8b417d5b91,loanhelp@upi,True,SCAM,2025-11-17T12:46:01.382229
+6905fad6ef4cf45cf157509e,loanhelp@upi,True,big scam,2025-11-17T16:10:49.477750
+6905faabef4cf45cf157509d,loanhelp@upi,True,Loan scam,2025-11-17T16:55:57.706440
+691b26b4c3a1062428a6019c,loanhelp@upi,True,Loan Scam,2025-11-17T19:15:35.766861
+691b26b4c3a1062428a6019c,loanyhelp@upi,True,Loan scam,2025-11-17T21:00:14.387057
+691b26b4c3a1062428a6019c,loanyhelp@upi,True,Loan scam,2025-11-17T21:01:39.805848
+691b26b4c3a1062428a6019c,loanhelp@upi,True,loan scam,2025-11-17T21:03:19.995756
+691b26b4c3a1062428a6019c,loanhelpss@upi,True,loan scam,2025-11-17T21:09:45.343508
+691b26b4c3a1062428a6019c,loanyhelpsss@upi,True,loan scam,2025-11-17T21:12:19.942745
+691b26b4c3a1062428a6019c,loassnhelpy@upi,True,Loan scam,2025-11-17T21:59:17.483476
+691b26b4c3a1062428a6019c,loassnhelpy@upi,True,LoanScam,2025-11-17T22:00:39.689617
+691b26b4c3a1062428a6019c,father@icici,True,Scam,2025-11-17T23:17:00.997442
+691b26b4c3a1062428a6019c,urgentmoney@paytm,True,Money scam,2025-11-17T23:18:02.247577
+691b26b4c3a1062428a6019c,urgentmoney@paytm,True,loan scam,2025-11-17T23:31:50.578598
+691c054e747f6fe65f7a501b,loanhelp@upi,True,loan scam,2025-11-18T11:05:04.918602
+691c054e747f6fe65f7a501b,loanhelp@upi,True,Loan scam,2025-11-18T11:21:53.342555
+691c054e747f6fe65f7a501b,loanhelp@upi,True,loan scam,2025-11-18T11:28:31.203417
+

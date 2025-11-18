@@ -101,6 +101,12 @@ def init_collections():
         feedback.create_index("transaction_id")
         feedback.create_index("receiver_id")
         feedback.create_index("created_at")
+
+        # Dynamic Clusters Collection
+        dynamic_clusters = _db.dynamic_clusters
+        dynamic_clusters.create_index("active")
+        dynamic_clusters.create_index("updated_at")
+        dynamic_clusters.create_index("avg_score")
         
         print("✅ Collections initialized with indexes!")
 

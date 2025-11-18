@@ -33,7 +33,13 @@ class GeminiService:
         """Check if Gemini service is properly configured and enabled"""
         return self.model is not None and self.api_key is not None
     
-    def generate_fraud_explanation(self, transaction_data: Dict[str, Any], agent_results: List[Dict[str, Any]], overall_risk: float) -> str:
+    def generate_fraud_explanation(
+        self, 
+        transaction_data: Dict[str, Any], 
+        agent_results: List[Dict[str, Any]], 
+        overall_risk: float,
+        threat_intel: Dict[str, Any] = None
+    ) -> str:
         """
         Generate a human-readable explanation of why a transaction was flagged as potentially fraudulent.
         
@@ -41,6 +47,7 @@ class GeminiService:
             transaction_data: The original transaction data
             agent_results: Results from all AI agents
             overall_risk: The overall risk score
+            threat_intel: Optional threat intelligence data (trending threats, cluster matches, etc.)
             
         Returns:
             str: A human-readable explanation of the fraud indicators
@@ -53,7 +60,7 @@ class GeminiService:
             import google.generativeai as genai
             
             # Create a detailed prompt for Gemini
-            prompt = self._create_analysis_prompt(transaction_data, agent_results, overall_risk)
+            prompt = self._create_analysis_prompt(transaction_data, agent_results, overall_risk, threat_intel)
             
             # Generate the explanation
             if self.model:
@@ -70,12 +77,18 @@ class GeminiService:
             logger.error(f"Error generating fraud explanation: {e}")
             return "Sorry, unable to generate explanation at this time."
     
-    def _create_analysis_prompt(self, transaction_data: Dict[str, Any], agent_results: List[Dict[str, Any]], overall_risk: float) -> str:
+    def _create_analysis_prompt(
+        self, 
+        transaction_data: Dict[str, Any], 
+        agent_results: List[Dict[str, Any]], 
+        overall_risk: float,
+        threat_intel: Dict[str, Any] = None
+    ) -> str:
         """Create a detailed prompt for the Gemini AI analysis"""
         prompt = f"""
         You are a financial security expert analyzing potential fraud indicators in UPI transactions. 
-        Based on the transaction details and AI agent analysis below, provide a clear, concise explanation 
-        of why this transaction was flagged as potentially fraudulent.
+        Based on the transaction details, AI agent analysis, and threat intelligence data below, provide a clear, 
+        concise explanation of why this transaction was flagged as potentially fraudulent.
 
         TRANSACTION DETAILS:
         - UPI ID: {transaction_data.get('receiver', 'N/A')}
@@ -93,12 +106,65 @@ class GeminiService:
         - Evidence: {', '.join(agent.get('evidence', [])) if agent.get('evidence') else 'N/A'}
             """
         
+        # Add threat intelligence information if available
+        if threat_intel:
+            prompt += "\n\nTHREAT INTELLIGENCE DATA:\n"
+            
+            # Trending threat information
+            if threat_intel.get('trendingThreat'):
+                trending = threat_intel['trendingThreat']
+                prompt += f"""
+        🚨 TRENDING THREAT DETECTED:
+        - This receiver is in the TOP TRENDING THREATS list
+        - Total Reports: {trending.get('totalReports', 'N/A')} times
+        - Threat Score: {trending.get('threatScore', 'N/A')}
+        - Pattern Flags: {', '.join(trending.get('patternFlags', [])) if trending.get('patternFlags') else 'N/A'}
+        - This is a HIGH PRIORITY threat that has been reported multiple times by other users.
+                """
+            
+            # Cluster member information
+            if threat_intel.get('clusterMember'):
+                cluster = threat_intel['clusterMember']
+                prompt += f"""
+        ⚠️ KNOWN SCAM CLUSTER MEMBER:
+        - This receiver is part of a known scam cluster: "{cluster.get('name', 'Unknown')}"
+        - Cluster has {cluster.get('count', 'N/A')} similar scam reports
+        - Average Threat Score: {cluster.get('avgScore', 'N/A')}
+        - Key Keywords: {', '.join(cluster.get('topKeywords', [])) if cluster.get('topKeywords') else 'N/A'}
+        - This receiver has been identified as part of a pattern of similar scams.
+                """
+            
+            # Cluster pattern match information
+            if threat_intel.get('clusterMatch'):
+                match = threat_intel['clusterMatch']
+                prompt += f"""
+        ⚠️ SCAM PATTERN MATCH:
+        - This transaction matches a known scam pattern: "{match.get('name', 'Unknown')}"
+        - Pattern Similarity: {(match.get('similarity', 0) * 100):.1f}%
+        - This pattern has been reported {match.get('count', 'N/A')} times
+        - Average Threat Score: {match.get('avgScore', 'N/A')}
+        - Key Keywords: {', '.join(match.get('topKeywords', [])) if match.get('topKeywords') else 'N/A'}
+        - The message content and pattern match known scam tactics.
+                """
+            
+            # Additional threat intel context
+            if threat_intel.get('totalReports', 0) > 0:
+                prompt += f"""
+        - Historical Data: This receiver has been reported {threat_intel.get('totalReports', 0)} times previously
+        - Threat Score: {threat_intel.get('threatScore', 'N/A')}
+                """
+        
         prompt += f"""
         OVERALL RISK ASSESSMENT: {overall_risk}%
 
         Please provide 2-3 key reasons why this transaction was flagged, using simple language that a 
         non-technical user can understand. Focus on the most significant red flags and explain why 
-        they might indicate fraud. Keep the explanation concise (under 200 words) and actionable.
+        they might indicate fraud. 
+        
+        IMPORTANT: If threat intelligence data is available (trending threats, cluster matches, etc.), 
+        make sure to prominently mention these in your explanation as they are strong indicators of fraud.
+        
+        Keep the explanation concise (under 250 words) and actionable.
 
         Format your response as a clear explanation without any markdown or special formatting.
         """

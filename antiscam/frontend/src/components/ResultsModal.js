@@ -50,6 +50,110 @@ const ResultsModal = ({ isOpen, results, onCancel, onProceed, onReport, onClose,
             <RiskMeter score={results.overallRisk} darkMode={darkMode} />
           </motion.div>
 
+          {/* Trending Threat Alert */}
+          {results.threatIntel?.trendingThreat && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05, duration: 0.4 }}
+              className={darkMode ? "bg-red-900/30 border-2 border-red-500/50 rounded-xl p-4" : "bg-red-50 border-2 border-red-500 rounded-xl p-4"}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className={`w-5 h-5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
+                <h3 className={darkMode ? "font-semibold text-red-400" : "font-semibold text-red-600"}>
+                  🚨 Trending Threat Detected
+                </h3>
+              </div>
+              <div className={darkMode ? "text-gray-300 text-sm space-y-1" : "text-gray-700 text-sm space-y-1"}>
+                <p>
+                  <strong>Receiver:</strong> {results.threatIntel.trendingThreat.receiver}
+                </p>
+                <p>
+                  <strong>Total Reports:</strong> {results.threatIntel.trendingThreat.totalReports} times
+                </p>
+                <p>
+                  <strong>Threat Score:</strong> {results.threatIntel.trendingThreat.threatScore?.toFixed(1) || 'N/A'}
+                </p>
+                {results.threatIntel.trendingThreat.patternFlags && results.threatIntel.trendingThreat.patternFlags.length > 0 && (
+                  <p>
+                    <strong>Pattern Flags:</strong> {results.threatIntel.trendingThreat.patternFlags.join(', ')}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Cluster Member Alert */}
+          {results.threatIntel?.clusterMember && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.08, duration: 0.4 }}
+              className={darkMode ? "bg-orange-900/30 border-2 border-orange-500/50 rounded-xl p-4" : "bg-orange-50 border-2 border-orange-500 rounded-xl p-4"}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className={`w-5 h-5 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`} />
+                <h3 className={darkMode ? "font-semibold text-orange-400" : "font-semibold text-orange-600"}>
+                  ⚠️ Known Scam Cluster Member
+                </h3>
+              </div>
+              <div className={darkMode ? "text-gray-300 text-sm space-y-1" : "text-gray-700 text-sm space-y-1"}>
+                <p>
+                  <strong>Cluster:</strong> {results.threatIntel.clusterMember.name}
+                </p>
+                <p>
+                  <strong>Reported:</strong> {results.threatIntel.clusterMember.count} times
+                </p>
+                <p>
+                  <strong>Average Threat Score:</strong> {results.threatIntel.clusterMember.avgScore?.toFixed(1) || 'N/A'}
+                </p>
+                {results.threatIntel.clusterMember.topKeywords && results.threatIntel.clusterMember.topKeywords.length > 0 && (
+                  <p>
+                    <strong>Keywords:</strong> {results.threatIntel.clusterMember.topKeywords.join(', ')}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Cluster Pattern Match Alert */}
+          {results.threatIntel?.clusterMatch && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1, duration: 0.4 }}
+              className={darkMode ? "bg-orange-900/30 border-2 border-orange-500/50 rounded-xl p-4" : "bg-orange-50 border-2 border-orange-500 rounded-xl p-4"}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className={`w-5 h-5 ${darkMode ? 'text-orange-400' : 'text-orange-600'}`} />
+                <h3 className={darkMode ? "font-semibold text-orange-400" : "font-semibold text-orange-600"}>
+                  ⚠️ Known Scam Pattern Detected
+                </h3>
+              </div>
+              <div className={darkMode ? "text-gray-300 text-sm space-y-1" : "text-gray-700 text-sm space-y-1"}>
+                <p>
+                  <strong>Pattern:</strong> {results.threatIntel.clusterMatch.name}
+                </p>
+                <p>
+                  <strong>Reported:</strong> {results.threatIntel.clusterMatch.count} times
+                </p>
+                <p>
+                  <strong>Average Threat Score:</strong> {results.threatIntel.clusterMatch.avgScore?.toFixed(1) || 'N/A'}
+                </p>
+                {results.threatIntel.clusterMatch.similarity && (
+                  <p>
+                    <strong>Similarity:</strong> {(results.threatIntel.clusterMatch.similarity * 100).toFixed(1)}%
+                  </p>
+                )}
+                {results.threatIntel.clusterMatch.topKeywords && results.threatIntel.clusterMatch.topKeywords.length > 0 && (
+                  <p>
+                    <strong>Keywords:</strong> {results.threatIntel.clusterMatch.topKeywords.join(', ')}
+                  </p>
+                )}
+              </div>
+            </motion.div>
+          )}
+
           {/* AI Explanation Section */}
           {results.aiExplanation && results.aiExplanation.length > 0 && results.aiExplanation !== "Sorry, unable to generate explanation at this time." && (
             <motion.div
@@ -107,14 +211,14 @@ const ResultsModal = ({ isOpen, results, onCancel, onProceed, onReport, onClose,
             </Button>
           </motion.div>
 
-          {results.overallRisk >= 70 && (
+          {results.overallRisk >= 40 && (
             <Button
               data-testid="report-scam-btn"
               onClick={onReport}
               variant="outline"
-              className="w-full border-2 border-red-500 text-red-600 hover:bg-red-50 py-4 rounded-xl"
+              className="w-full border-2 border-red-500 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 dark:text-red-400 dark:border-red-400 py-4 rounded-xl"
             >
-              Report as Scam
+              🚨 Report as Scam
             </Button>
           )}
         </div>

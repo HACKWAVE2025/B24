@@ -6,19 +6,23 @@ import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
 import DemoPage from "./pages/DemoPage";
 import AIAnalysisPage from "./pages/AIAnalysisPage";
+import ThreatIntelDashboard from "./pages/ThreatIntelDashboard";
 import { Toaster } from "./components/ui/sonner";
 import { getToken, verifyToken, removeToken, removeUser } from "./services/auth";
 import AlertNotification from "./components/AlertNotification";
-import { useWebSocket } from "./hooks/useWebSocket";
+import { SocketProvider, useSocketContext } from "./context/SocketContext";
+import APP_ROUTES from "./routes";
 
 // Alert Manager Component - Must be inside Router
 function AlertManager({ isAuthenticated }) {
-  const { alerts, isConnected, dismissAlert } = useWebSocket(isAuthenticated);
+  const socketContext = useSocketContext();
+  if (!isAuthenticated || !socketContext) {
+    return null;
+  }
+
+  const { alerts, dismissAlert } = socketContext;
   const navigate = useNavigate(); // Now we can safely use useNavigate here
 
-  if (!isAuthenticated) {
-    return null; // Don't show alerts if not authenticated
-  }
 
   const handleProceed = (path) => {
     navigate(path);
@@ -124,33 +128,38 @@ function App() {
 
   return (
     <div className="App">
-      <BrowserRouter>
-        {/* Alert Notification System - Must be inside Router for useNavigate to work */}
-        <AlertManager isAuthenticated={isAuthenticated} />
-        
-        <Routes>
-          {/* Public Landing Page */}
-          <Route path="/" element={
-            isAuthenticated ? <Navigate to="/dashboard" /> : <LandingPage darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
-          } />
+      <SocketProvider isAuthenticated={isAuthenticated}>
+        <BrowserRouter>
+          {/* Alert Notification System - Must be inside Router for useNavigate to work */}
+          <AlertManager isAuthenticated={isAuthenticated} />
+          
+          <Routes>
+            {/* Public Landing Page */}
+            <Route path={APP_ROUTES.root} element={
+              isAuthenticated ? <Navigate to={APP_ROUTES.dashboard} /> : <LandingPage darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+            } />
 
-          {/* Auth Page */}
-          <Route path="/auth" element={
-            isAuthenticated ? <Navigate to="/dashboard" /> : <AuthPage onLogin={handleLogin} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
-          } />
+            {/* Auth Page */}
+            <Route path={APP_ROUTES.auth} element={
+              isAuthenticated ? <Navigate to={APP_ROUTES.dashboard} /> : <AuthPage onLogin={handleLogin} darkMode={darkMode} toggleDarkMode={toggleDarkMode} />
+            } />
 
-          {/* Protected Routes */}
-          <Route path="/dashboard" element={
-            isAuthenticated ? <DashboardPage onLogout={handleLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} /> : <Navigate to="/auth" />
-          } />
-          <Route path="/demo" element={
-            isAuthenticated ? <DemoPage onLogout={handleLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} /> : <Navigate to="/auth" />
-          } />
-          <Route path="/ai-analysis" element={
-            isAuthenticated ? <AIAnalysisPage onLogout={handleLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} /> : <Navigate to="/auth" />
-          } />
-        </Routes>
-      </BrowserRouter>
+            {/* Protected Routes */}
+            <Route path={APP_ROUTES.dashboard} element={
+              isAuthenticated ? <DashboardPage onLogout={handleLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} /> : <Navigate to={APP_ROUTES.auth} />
+            } />
+            <Route path={APP_ROUTES.threatIntel} element={
+              isAuthenticated ? <ThreatIntelDashboard onLogout={handleLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} /> : <Navigate to={APP_ROUTES.auth} />
+            } />
+            <Route path={APP_ROUTES.demo} element={
+              isAuthenticated ? <DemoPage onLogout={handleLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} /> : <Navigate to={APP_ROUTES.auth} />
+            } />
+            <Route path={APP_ROUTES.aiAnalysis} element={
+              isAuthenticated ? <AIAnalysisPage onLogout={handleLogout} darkMode={darkMode} toggleDarkMode={toggleDarkMode} /> : <Navigate to={APP_ROUTES.auth} />
+            } />
+          </Routes>
+        </BrowserRouter>
+      </SocketProvider>
       
       <Toaster richColors />
     </div>
